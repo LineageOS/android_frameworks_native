@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <compare>
+#include <ios>
 
 #include <android-base/stringprintf.h>
 #include <android/input.h>
@@ -464,6 +465,53 @@ inline WithPointersMatcher WithPointers(
     return WithPointersMatcher(pointers);
 }
 
+/// Pointer ids matcher
+class WithPointerIdsMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithPointerIdsMatcher(std::set<int32_t> pointerIds) : mPointerIds(pointerIds) {}
+
+    bool MatchAndExplain(const MotionEvent& event, std::ostream* os) const {
+        std::set<int32_t> actualPointerIds;
+        for (size_t pointerIndex = 0; pointerIndex < event.getPointerCount(); pointerIndex++) {
+            const PointerProperties* properties = event.getPointerProperties(pointerIndex);
+            actualPointerIds.insert(properties->id);
+        }
+
+        if (mPointerIds != actualPointerIds) {
+            *os << "expected pointer ids " << dumpSet(mPointerIds) << ", but got "
+                << dumpSet(actualPointerIds);
+            return false;
+        }
+        return true;
+    }
+
+    bool MatchAndExplain(const NotifyMotionArgs& event, std::ostream* os) const {
+        std::set<int32_t> actualPointerIds;
+        for (const PointerProperties& properties : event.pointerProperties) {
+            actualPointerIds.insert(properties.id);
+        }
+
+        if (mPointerIds != actualPointerIds) {
+            *os << "expected pointer ids " << dumpSet(mPointerIds) << ", but got "
+                << dumpSet(actualPointerIds);
+            return false;
+        }
+        return true;
+    }
+
+    void DescribeTo(std::ostream* os) const { *os << "with pointer ids " << dumpSet(mPointerIds); }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "wrong pointer ids"; }
+
+private:
+    const std::set<int32_t> mPointerIds;
+};
+
+inline WithPointerIdsMatcher WithPointerIds(const std::set<int32_t /*id*/>& pointerIds) {
+    return WithPointerIdsMatcher(pointerIds);
+}
+
 /// Key code
 class WithKeyCodeMatcher {
 public:
@@ -631,6 +679,24 @@ MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {
     return argPressure == pressure;
 }
 
+MATCHER_P(WithSize, size, "MotionEvent with specified size") {
+    const auto argSize = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_SIZE);
+    *result_listener << "expected size " << size << ", but got " << argSize;
+    return argSize == size;
+}
+
+MATCHER_P(WithOrientation, orientation, "MotionEvent with specified orientation") {
+    const auto argOrientation = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
+    *result_listener << "expected orientation " << orientation << ", but got " << argOrientation;
+    return argOrientation == orientation;
+}
+
+MATCHER_P(WithDistance, distance, "MotionEvent with specified distance") {
+    const auto argDistance = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_DISTANCE);
+    *result_listener << "expected distance " << distance << ", but got " << argDistance;
+    return argDistance == distance;
+}
+
 MATCHER_P2(WithTouchDimensions, maj, min, "InputEvent with specified touch dimensions") {
     const auto argMajor = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR);
     const auto argMinor = arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR);
@@ -674,6 +740,12 @@ MATCHER_P(WithButtonState, buttons, "InputEvent with specified button state") {
     return arg.buttonState == buttons;
 }
 
+MATCHER_P(WithMetaState, metaState, "InputEvent with specified meta state") {
+    *result_listener << "expected meta state 0x" << std::hex << metaState << ", but got 0x"
+                     << arg.metaState;
+    return arg.metaState == metaState;
+}
+
 MATCHER_P(WithActionButton, actionButton, "InputEvent with specified action button") {
     *result_listener << "expected action button " << actionButton << ", but got "
                      << arg.actionButton;
@@ -694,6 +766,18 @@ MATCHER_P2(WithPrecision, xPrecision, yPrecision, "MotionEvent with specified pr
     *result_listener << "expected x-precision " << xPrecision << " and y-precision " << yPrecision
                      << ", but got " << arg.xPrecision << " and " << arg.yPrecision;
     return arg.xPrecision == xPrecision && arg.yPrecision == yPrecision;
+}
+
+MATCHER_P(WithPolicyFlags, policyFlags, "InputEvent with specified policy flags") {
+    *result_listener << "expected policy flags 0x" << std::hex << policyFlags << ", but got 0x"
+                     << arg.policyFlags;
+    return arg.policyFlags == static_cast<uint32_t>(policyFlags);
+}
+
+MATCHER_P(WithEdgeFlags, edgeFlags, "InputEvent with specified edge flags") {
+    *result_listener << "expected edge flags 0x" << std::hex << edgeFlags << ", but got 0x"
+                     << arg.edgeFlags;
+    return arg.edgeFlags == edgeFlags;
 }
 
 } // namespace android

@@ -33,6 +33,7 @@
 #include <utils/String8.h>
 #include <utils/Trace.h>
 #include <vkjson.h>
+#include <vkprofiles.h>
 
 #include <thread>
 #include <memory>
@@ -44,6 +45,7 @@ using base::StringAppendF;
 namespace {
 status_t cmdHelp(int out);
 status_t cmdVkjson(int out, int err);
+status_t cmdVkprofiles(int out, int err);
 void dumpGameDriverInfo(std::string* result);
 } // namespace
 
@@ -147,6 +149,7 @@ status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<Stri
 
     if (args.size() >= 1) {
         if (args[0] == String16("vkjson")) return cmdVkjson(out, err);
+        if (args[0] == String16("vkprofiles")) return cmdVkprofiles(out, err);
         if (args[0] == String16("help")) return cmdHelp(out);
     }
     // no command, or unrecognized command
@@ -213,31 +216,24 @@ namespace {
 status_t cmdHelp(int out) {
     FILE* outs = fdopen(out, "w");
     if (!outs) {
-        ALOGE("vkjson: failed to create out stream: %s (%d)", strerror(errno), errno);
+        ALOGE("gpuservice: failed to create out stream: %s (%d)", strerror(errno), errno);
         return BAD_VALUE;
     }
     fprintf(outs,
             "GPU Service commands:\n"
-            "  vkjson   dump Vulkan properties as JSON\n");
+            "  vkjson      dump Vulkan properties as JSON\n"
+            "  vkprofiles  print support for select Vulkan profiles\n");
     fclose(outs);
     return NO_ERROR;
 }
 
-void vkjsonPrint(FILE* out) {
-    std::string json = VkJsonInstanceToJson(VkJsonGetInstance());
-    fwrite(json.data(), 1, json.size(), out);
-    fputc('\n', out);
+status_t cmdVkjson(int out, int /*err*/) {
+    dprintf(out, "%s\n", VkJsonInstanceToJson(VkJsonGetInstance()).c_str());
+    return NO_ERROR;
 }
 
-status_t cmdVkjson(int out, int /*err*/) {
-    FILE* outs = fdopen(out, "w");
-    if (!outs) {
-        int errnum = errno;
-        ALOGE("vkjson: failed to create output stream: %s", strerror(errnum));
-        return -errnum;
-    }
-    vkjsonPrint(outs);
-    fclose(outs);
+status_t cmdVkprofiles(int out, int /*err*/) {
+    dprintf(out, "%s\n", android::vkprofiles::vkProfiles().c_str());
     return NO_ERROR;
 }
 

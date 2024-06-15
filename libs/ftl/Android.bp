@@ -5,16 +5,21 @@ package {
     // to get the below license kinds:
     //   SPDX-license-identifier-Apache-2.0
     default_applicable_licenses: ["frameworks_native_license"],
+    default_team: "trendy_team_android_core_graphics_stack",
 }
 
 cc_test {
     name: "ftl_test",
     test_suites: ["device-tests"],
+    header_libs: [
+        "libbase_headers",
+    ],
     srcs: [
         "algorithm_test.cpp",
         "cast_test.cpp",
         "concat_test.cpp",
         "enum_test.cpp",
+        "expected_test.cpp",
         "fake_guard_test.cpp",
         "flags_test.cpp",
         "function_test.cpp",

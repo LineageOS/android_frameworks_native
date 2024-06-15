@@ -243,6 +243,20 @@ void AServiceManager_getUpdatableApexName(const char* instance, void* context,
         __INTRODUCED_IN(__ANDROID_API_U__);
 
 /**
+ * Opens a declared passthrough HAL.
+ *
+ * \param instance identifier of the passthrough service (e.g. "mapper")
+ * \param instance identifier of the implemenatation (e.g. "default")
+ * \param flag passed to dlopen()
+ *
+ * \return the result of dlopen of the specified HAL
+ */
+void* AServiceManager_openDeclaredPassthroughHal(const char* interface, const char* instance,
+                                                 int flag)
+        // TODO(b/302113279) use __INTRODUCED_LLNDK for vendor variants
+        __INTRODUCED_IN(__ANDROID_API_V__);
+
+/**
  * Prevent lazy services without client from shutting down their process
  *
  * This should only be used if it is every eventually set to false. If a

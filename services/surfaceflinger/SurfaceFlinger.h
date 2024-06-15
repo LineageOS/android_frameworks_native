@@ -82,7 +82,6 @@
 #include "MutexUtils.h"
 #include "Scheduler/ISchedulerCallback.h"
 #include "Scheduler/RefreshRateSelector.h"
-#include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
 #include "SurfaceFlingerFactory.h"
 #include "ThreadContext.h"
@@ -200,8 +199,7 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        private HWC2::ComposerCallback,
                        private ICompositor,
                        private scheduler::ISchedulerCallback,
-                       private compositionengine::ICEPowerCallback,
-                       private scheduler::IVsyncTrackerCallback {
+                       private compositionengine::ICEPowerCallback {
 public:
     struct SkipInitializationTag {};
 
@@ -561,6 +559,7 @@ private:
 
     void captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
     void captureDisplay(DisplayId, const CaptureArgs&, const sp<IScreenCaptureListener>&);
+    ScreenCaptureResults captureLayersSync(const LayerCaptureArgs&);
     void captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
@@ -654,6 +653,8 @@ private:
     status_t getStalledTransactionInfo(
             int pid, std::optional<TransactionHandler::StalledTransactionInfo>& result);
 
+    void updateHdcpLevels(hal::HWDisplayId hwcDisplayId, int32_t connectedLevel, int32_t maxLevel);
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
@@ -684,13 +685,11 @@ private:
     void kernelTimerChanged(bool expired) override;
     void triggerOnFrameRateOverridesChanged() override;
     void onChoreographerAttached() override;
+    void onExpectedPresentTimePosted(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
+                                     Fps renderRate) override;
 
     // ICEPowerCallback overrides:
     void notifyCpuLoadUp() override;
-
-    // IVsyncTrackerCallback overrides
-    void onVsyncGenerated(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
-                          Fps renderRate) override;
 
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
     void toggleKernelIdleTimer() REQUIRES(mStateLock);
@@ -717,7 +716,7 @@ private:
     // Show hdr sdr ratio overlay
     bool mHdrSdrRatioOverlay = false;
 
-    void setDesiredMode(display::DisplayModeRequest&&, bool force = false) REQUIRES(mStateLock);
+    void setDesiredMode(display::DisplayModeRequest&&) REQUIRES(mStateLock);
 
     status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId, Fps minFps,
                                        Fps maxFps);
@@ -782,9 +781,6 @@ private:
     void updateCursorAsync();
 
     void initScheduler(const sp<const DisplayDevice>&) REQUIRES(kMainThreadContext, mStateLock);
-
-    void resetPhaseConfiguration(Fps) REQUIRES(mStateLock, kMainThreadContext);
-    void updatePhaseConfiguration(Fps) REQUIRES(mStateLock);
 
     /*
      * Transactions
@@ -907,7 +903,8 @@ private:
      * Display and layer stack management
      */
 
-    // Called during boot, and restart after system_server death.
+    // Called during boot and restart after system_server death, setting the stage for bootanimation
+    // before DisplayManager takes over.
     void initializeDisplays() REQUIRES(kMainThreadContext);
 
     sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) const
@@ -1055,7 +1052,6 @@ private:
                                const DisplayDeviceState& drawingState)
             REQUIRES(mStateLock, kMainThreadContext);
 
-    void dispatchDisplayHotplugEvent(PhysicalDisplayId, bool connected);
     void dispatchDisplayModeChangeEvent(PhysicalDisplayId, const scheduler::FrameRateMode&)
             REQUIRES(mStateLock);
 
@@ -1217,12 +1213,6 @@ private:
     float mGlobalSaturationFactor = 1.0f;
     mat4 mClientColorMatrix;
 
-    size_t mMaxGraphicBufferProducerListSize = MAX_LAYERS;
-    // If there are more GraphicBufferProducers tracked by SurfaceFlinger than
-    // this threshold, then begin logging.
-    size_t mGraphicBufferProducerListSizeLogThreshold =
-            static_cast<size_t>(0.95 * static_cast<double>(MAX_LAYERS));
-
     // protected by mStateLock (but we could use another lock)
     bool mLayersRemoved = false;
     bool mLayersAdded = false;
@@ -1279,6 +1269,7 @@ private:
         hal::Connection connection = hal::Connection::INVALID;
     };
 
+    bool mIsHdcpViaNegVsync = false;
     bool mIsHotplugErrViaNegVsync = false;
 
     std::mutex mHotplugMutex;
@@ -1367,17 +1358,8 @@ private:
 
     const std::string mHwcServiceName;
 
-    /*
-     * Scheduler
-     */
     std::unique_ptr<scheduler::Scheduler> mScheduler;
-    scheduler::ConnectionHandle mAppConnectionHandle;
-    scheduler::ConnectionHandle mSfConnectionHandle;
 
-    // Stores phase offsets configured per refresh rate.
-    std::unique_ptr<scheduler::VsyncConfiguration> mVsyncConfiguration;
-
-    std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
     scheduler::PresentLatencyTracker mPresentLatencyTracker GUARDED_BY(kMainThreadContext);
 
     bool mLumaSampling = true;
@@ -1476,7 +1458,7 @@ private:
     bool mLegacyFrontEndEnabled = true;
 
     frontend::LayerLifecycleManager mLayerLifecycleManager;
-    frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
+    frontend::LayerHierarchyBuilder mLayerHierarchyBuilder;
     frontend::LayerSnapshotBuilder mLayerSnapshotBuilder;
 
     std::vector<std::pair<uint32_t, std::string>> mDestroyedHandles;
@@ -1498,14 +1480,30 @@ private:
     ftl::SmallMap<int64_t, sp<SurfaceControl>, 3> mMirrorMapForDebug;
 
     // NotifyExpectedPresentHint
+    enum class NotifyExpectedPresentHintStatus {
+        // Represents that framework can start sending hint if required.
+        Start,
+        // Represents that the hint is already sent.
+        Sent,
+        // Represents that the hint will be scheduled with a new frame.
+        ScheduleOnPresent,
+        // Represents that a hint will be sent instantly by scheduling on the main thread.
+        ScheduleOnTx
+    };
     struct NotifyExpectedPresentData {
-        // lastExpectedPresentTimestamp is read and write from multiple threads such as
-        // main thread, EventThread, MessageQueue. And is atomic for that reason.
-        std::atomic<TimePoint> lastExpectedPresentTimestamp{};
+        TimePoint lastExpectedPresentTimestamp{};
         Fps lastFrameInterval{};
+        // hintStatus is read and write from multiple threads such as
+        // main thread, EventThread. And is atomic for that reason.
+        std::atomic<NotifyExpectedPresentHintStatus> hintStatus =
+                NotifyExpectedPresentHintStatus::Start;
     };
     std::unordered_map<PhysicalDisplayId, NotifyExpectedPresentData> mNotifyExpectedPresentMap;
-
+    void sendNotifyExpectedPresentHint(PhysicalDisplayId displayId) override
+            REQUIRES(kMainThreadContext);
+    void scheduleNotifyExpectedPresentHint(PhysicalDisplayId displayId,
+                                           VsyncId vsyncId = VsyncId{
+                                                   FrameTimelineInfo::INVALID_VSYNC_ID});
     void notifyExpectedPresentIfRequired(PhysicalDisplayId, Period vsyncPeriod,
                                          TimePoint expectedPresentTime, Fps frameInterval,
                                          std::optional<Period> timeoutOpt);
@@ -1564,6 +1562,7 @@ public:
                                       const sp<IScreenCaptureListener>&) override;
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override;
+    binder::Status captureLayersSync(const LayerCaptureArgs&, ScreenCaptureResults* results);
 
     // TODO(b/239076119): Remove deprecated AIDL.
     [[deprecated]] binder::Status clearAnimationFrameStats() override {

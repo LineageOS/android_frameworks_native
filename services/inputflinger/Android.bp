@@ -14,6 +14,7 @@
 
 // Default flags to be used throughout all libraries in inputflinger.
 package {
+    default_team: "trendy_team_input_framework",
     // See: http://go/android-license-faq
     // A large-scale-change added 'default_applicable_licenses' to import
     // all of the 'license_kinds' from "frameworks_native_license"
@@ -77,6 +78,7 @@ filegroup {
         "InputCommonConverter.cpp",
         "InputDeviceMetricsCollector.cpp",
         "InputFilter.cpp",
+        "InputFilterCallbacks.cpp",
         "InputProcessor.cpp",
         "PointerChoreographer.cpp",
         "PreferStylusOverTouchBlocker.cpp",
@@ -103,10 +105,13 @@ cc_defaults {
         "libprotobuf-cpp-lite",
         "libstatslog",
         "libutils",
+        "libstatspull",
+        "libstatssocket",
         "server_configurable_flags",
     ],
     static_libs: [
         "libattestation",
+        "libperfetto_client_experimental",
         "libpalmrejection",
         "libui-types",
     ],
@@ -122,14 +127,6 @@ cc_defaults {
         android: {
             shared_libs: [
                 "libgui",
-                "libstatspull",
-                "libstatssocket",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libstatspull",
-                "libstatssocket",
             ],
         },
     },

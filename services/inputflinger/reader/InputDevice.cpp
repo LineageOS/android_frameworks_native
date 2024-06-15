@@ -251,6 +251,7 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
             mAssociatedDeviceType =
                     getValueByKey(readerConfig.deviceTypeAssociations, mIdentifier.location);
             mIsWaking = mConfiguration.getBool("device.wake").value_or(false);
+            mShouldSmoothScroll = mConfiguration.getBool("device.viewBehavior_smoothScroll");
         }
 
         if (!changes.any() || changes.test(Change::DEVICE_ALIAS)) {
@@ -264,6 +265,8 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
         }
 
         if (!changes.any() || changes.test(Change::DISPLAY_INFO)) {
+            const auto oldAssociatedDisplayId = getAssociatedDisplayId();
+
             // In most situations, no port or name will be specified.
             mAssociatedDisplayPort = std::nullopt;
             mAssociatedDisplayUniqueId = std::nullopt;
@@ -304,6 +307,10 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
                           "corresponding viewport cannot be found",
                           getName().c_str(), mAssociatedDisplayUniqueId->c_str());
                 }
+            }
+
+            if (getAssociatedDisplayId() != oldAssociatedDisplayId) {
+                bumpGeneration();
             }
         }
 
@@ -350,6 +357,7 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
 
         if (mDropUntilNextSync) {
             if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
+                out += reset(rawEvent->when);
                 mDropUntilNextSync = false;
                 ALOGD_IF(debugRawEvents(), "Recovered from input event buffer overrun.");
             } else {
@@ -359,7 +367,6 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
         } else if (rawEvent->type == EV_SYN && rawEvent->code == SYN_DROPPED) {
             ALOGI("Detected input event buffer overrun for device %s.", getName().c_str());
             mDropUntilNextSync = true;
-            out += reset(rawEvent->when);
         } else {
             for_each_mapper_in_subdevice(rawEvent->deviceId, [&](InputMapper& mapper) {
                 out += mapper.process(rawEvent);
@@ -401,7 +408,8 @@ std::list<NotifyArgs> InputDevice::updateExternalStylusState(const StylusState& 
 InputDeviceInfo InputDevice::getDeviceInfo() {
     InputDeviceInfo outDeviceInfo;
     outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
-                             mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE));
+                             mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE),
+                             {mShouldSmoothScroll});
 
     for_each_mapper(
             [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });
@@ -501,13 +509,8 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
     // Touchscreens and touchpad devices.
     static const bool ENABLE_TOUCHPAD_GESTURES_LIBRARY =
             sysprop::InputProperties::enable_touchpad_gestures_library().value_or(true);
-    // TODO(b/272518665): Fix the new touchpad stack for Sony DualShock 4 (5c4, 9cc) touchpads, or
-    // at least load this setting from the IDC file.
-    const InputDeviceIdentifier identifier = contextPtr.getDeviceIdentifier();
-    const bool isSonyDualShock4Touchpad = identifier.vendor == 0x054c &&
-            (identifier.product == 0x05c4 || identifier.product == 0x09cc);
     if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
-        classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
+        classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(createInputMapper<TouchpadInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(createInputMapper<MultiTouchInputMapper>(contextPtr, readerConfig));

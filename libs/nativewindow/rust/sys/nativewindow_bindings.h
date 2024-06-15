@@ -19,3 +19,4 @@
 #include <android/hardware_buffer_aidl.h>
 #include <android/hdr_metadata.h>
 #include <android/native_window.h>
+#include <android/native_window_aidl.h>

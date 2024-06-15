@@ -258,7 +258,9 @@ cc_defaults {
         "-DBINDER_DISABLE_NATIVE_HANDLE",
         "-DBINDER_DISABLE_BLOB",
         "-DBINDER_NO_LIBBASE",
+        // TODO: switch to "vendor: true" rather than copying this
         // Trusty libbinder uses vendor stability for its binders
+        "-D__ANDROID_VENDOR__",
         "-D__ANDROID_VNDK__",
         "-U__ANDROID__",
         "-D__TRUSTY__",
@@ -316,6 +318,24 @@ cc_defaults {
         host: {
             srcs: [
                 "ServiceManagerHost.cpp",
+            ],
+        },
+        android: {
+            shared_libs: [
+                "libapexsupport",
+                "libvndksupport",
+            ],
+        },
+        recovery: {
+            exclude_shared_libs: [
+                "libapexsupport",
+                "libvndksupport",
+            ],
+        },
+        native_bridge: {
+            exclude_shared_libs: [
+                "libapexsupport",
+                "libvndksupport",
             ],
         },
     },
@@ -644,9 +664,7 @@ cc_library {
     // Do not expand the visibility.
     visibility: [
         ":__subpackages__",
-        "//packages/modules/Virtualization/javalib/jni",
-        "//packages/modules/Virtualization/vm_payload",
-        "//packages/modules/Virtualization/demo_native",
+        "//packages/modules/Virtualization:__subpackages__",
         "//device/google/cuttlefish/shared/minidroid:__subpackages__",
         "//system/software_defined_vehicle:__subpackages__",
     ],

@@ -73,6 +73,14 @@ void Stability::tryMarkCompilationUnit(IBinder* binder) {
     (void)setRepr(binder, getLocalLevel(), REPR_NONE);
 }
 
+// after deprecation of the VNDK, these should be aliases. At some point
+// all references to __ANDROID_VNDK__ should be replaced by __ANDROID_VENDOR__
+// but for right now, check that this condition holds because some
+// places check __ANDROID_VNDK__ and some places check __ANDROID_VENDOR__
+#if defined(__ANDROID_VNDK__) != defined(__ANDROID_VENDOR__)
+#error "__ANDROID_VNDK__ and __ANDROID_VENDOR__ should be aliases"
+#endif
+
 Stability::Level Stability::getLocalLevel() {
 #ifdef __ANDROID_APEX__
 #error "APEX can't use libbinder (must use libbinder_ndk)"

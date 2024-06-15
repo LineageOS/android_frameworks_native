@@ -37,7 +37,7 @@ protected:
     ~RefreshRateStatsTest();
 
     void resetStats(Fps fps) {
-        mRefreshRateStats = std::make_unique<RefreshRateStats>(mTimeStats, fps, PowerMode::OFF);
+        mRefreshRateStats = std::make_unique<RefreshRateStats>(mTimeStats, fps);
     }
 
     mock::TimeStats mTimeStats;

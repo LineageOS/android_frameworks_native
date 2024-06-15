@@ -103,14 +103,22 @@ public:
 
     binder_status_t readFromParcel(const AParcel* _Nonnull parcel) {
         reset();
-        return ANativeWindow_readFromParcel(parcel, &mWindow);
+        if (__builtin_available(android __ANDROID_API_U__, *)) {
+            return ANativeWindow_readFromParcel(parcel, &mWindow);
+        } else {
+            return STATUS_INVALID_OPERATION;
+        }
     }
 
     binder_status_t writeToParcel(AParcel* _Nonnull parcel) const {
         if (!mWindow) {
             return STATUS_BAD_VALUE;
         }
-        return ANativeWindow_writeToParcel(mWindow, parcel);
+        if (__builtin_available(android __ANDROID_API_U__, *)) {
+            return ANativeWindow_writeToParcel(mWindow, parcel);
+        } else {
+            return STATUS_INVALID_OPERATION;
+        }
     }
 
     /**

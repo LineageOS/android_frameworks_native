@@ -29,6 +29,10 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
+#if defined(__APPLE__)
+typedef off_t off64_t; // Mac OSX does not define off64_t
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -190,8 +190,12 @@ bool LayerHierarchy::hasRelZLoop(uint32_t& outInvalidRelativeRoot) const {
     return outInvalidRelativeRoot != UNASSIGNED_LAYER_ID;
 }
 
-LayerHierarchyBuilder::LayerHierarchyBuilder(
-        const std::vector<std::unique_ptr<RequestedLayerState>>& layers) {
+void LayerHierarchyBuilder::init(const std::vector<std::unique_ptr<RequestedLayerState>>& layers) {
+    mLayerIdToHierarchy.clear();
+    mHierarchies.clear();
+    mRoot = nullptr;
+    mOffscreenRoot = nullptr;
+
     mHierarchies.reserve(layers.size());
     mLayerIdToHierarchy.reserve(layers.size());
     for (auto& layer : layers) {
@@ -202,6 +206,7 @@ LayerHierarchyBuilder::LayerHierarchyBuilder(
         onLayerAdded(layer.get());
     }
     detachHierarchyFromRelativeParent(&mOffscreenRoot);
+    mInitialized = true;
 }
 
 void LayerHierarchyBuilder::attachToParent(LayerHierarchy* hierarchy) {
@@ -332,7 +337,7 @@ void LayerHierarchyBuilder::updateMirrorLayer(RequestedLayerState* layer) {
     }
 }
 
-void LayerHierarchyBuilder::update(
+void LayerHierarchyBuilder::doUpdate(
         const std::vector<std::unique_ptr<RequestedLayerState>>& layers,
         const std::vector<std::unique_ptr<RequestedLayerState>>& destroyedLayers) {
     // rebuild map
@@ -379,6 +384,32 @@ void LayerHierarchyBuilder::update(
     // further by tracking onscreen, offscreen state in LayerHierarchy.
     detachHierarchyFromRelativeParent(&mOffscreenRoot);
     attachHierarchyToRelativeParent(&mRoot);
+}
+
+void LayerHierarchyBuilder::update(LayerLifecycleManager& layerLifecycleManager) {
+    if (!mInitialized) {
+        ATRACE_NAME("LayerHierarchyBuilder:init");
+        init(layerLifecycleManager.getLayers());
+    } else if (layerLifecycleManager.getGlobalChanges().test(
+                       RequestedLayerState::Changes::Hierarchy)) {
+        ATRACE_NAME("LayerHierarchyBuilder:update");
+        doUpdate(layerLifecycleManager.getLayers(), layerLifecycleManager.getDestroyedLayers());
+    } else {
+        return; // nothing to do
+    }
+
+    uint32_t invalidRelativeRoot;
+    bool hasRelZLoop = mRoot.hasRelZLoop(invalidRelativeRoot);
+    while (hasRelZLoop) {
+        ATRACE_NAME("FixRelZLoop");
+        TransactionTraceWriter::getInstance().invoke("relz_loop_detected",
+                                                     /*overwrite=*/false);
+        layerLifecycleManager.fixRelativeZLoop(invalidRelativeRoot);
+        // reinitialize the hierarchy with the updated layer data
+        init(layerLifecycleManager.getLayers());
+        // check if we have any remaining loops
+        hasRelZLoop = mRoot.hasRelZLoop(invalidRelativeRoot);
+    }
 }
 
 const LayerHierarchy& LayerHierarchyBuilder::getHierarchy() const {

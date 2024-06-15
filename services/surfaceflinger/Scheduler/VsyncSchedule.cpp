@@ -57,11 +57,10 @@ private:
 };
 
 VsyncSchedule::VsyncSchedule(ftl::NonNull<DisplayModePtr> modePtr, FeatureFlags features,
-                             RequestHardwareVsync requestHardwareVsync,
-                             IVsyncTrackerCallback& callback)
+                             RequestHardwareVsync requestHardwareVsync)
       : mId(modePtr->getPhysicalDisplayId()),
         mRequestHardwareVsync(std::move(requestHardwareVsync)),
-        mTracker(createTracker(modePtr, callback)),
+        mTracker(createTracker(modePtr)),
         mDispatch(createDispatch(mTracker)),
         mController(createController(modePtr->getPhysicalDisplayId(), *mTracker, features)),
         mTracer(features.test(Feature::kTracePredictedVsync)
@@ -89,8 +88,12 @@ Period VsyncSchedule::minFramePeriod() const {
     return period();
 }
 
-TimePoint VsyncSchedule::vsyncDeadlineAfter(TimePoint timePoint) const {
-    return TimePoint::fromNs(mTracker->nextAnticipatedVSyncTimeFrom(timePoint.ns()));
+TimePoint VsyncSchedule::vsyncDeadlineAfter(TimePoint timePoint,
+                                            ftl::Optional<TimePoint> lastVsyncOpt) const {
+    return TimePoint::fromNs(
+            mTracker->nextAnticipatedVSyncTimeFrom(timePoint.ns(),
+                                                   lastVsyncOpt.transform(
+                                                           [](TimePoint t) { return t.ns(); })));
 }
 
 void VsyncSchedule::dump(std::string& out) const {
@@ -111,15 +114,14 @@ void VsyncSchedule::dump(std::string& out) const {
     mDispatch->dump(out);
 }
 
-VsyncSchedule::TrackerPtr VsyncSchedule::createTracker(ftl::NonNull<DisplayModePtr> modePtr,
-                                                       IVsyncTrackerCallback& callback) {
+VsyncSchedule::TrackerPtr VsyncSchedule::createTracker(ftl::NonNull<DisplayModePtr> modePtr) {
     // TODO(b/144707443): Tune constants.
     constexpr size_t kHistorySize = 20;
     constexpr size_t kMinSamplesForPrediction = 6;
     constexpr uint32_t kDiscardOutlierPercent = 20;
 
     return std::make_unique<VSyncPredictor>(modePtr, kHistorySize, kMinSamplesForPrediction,
-                                            kDiscardOutlierPercent, callback);
+                                            kDiscardOutlierPercent);
 }
 
 VsyncSchedule::DispatchPtr VsyncSchedule::createDispatch(TrackerPtr tracker) {

@@ -69,4 +69,10 @@ interface IBinderRecordReplayTest {
 
     void setSingleDataParcelableArray(in SingleDataParcelable[] input);
     SingleDataParcelable[] getSingleDataParcelableArray();
+
+    void setBinder(in IBinder binder);
+    IBinder getBinder();
+
+    void setFileDescriptor(in FileDescriptor fd);
+    FileDescriptor getFileDescriptor();
 }

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_input_framework",
     // See: http://go/android-license-faq
     // A large-scale-change added 'default_applicable_licenses' to import
     // all of the 'license_kinds' from "frameworks_native_license"
@@ -44,6 +45,7 @@ cc_test {
         "EventHub_test.cpp",
         "FakeEventHub.cpp",
         "FakeInputReaderPolicy.cpp",
+        "FakeInputTracingBackend.cpp",
         "FakePointerController.cpp",
         "FocusResolver_test.cpp",
         "GestureConverter_test.cpp",
@@ -68,6 +70,7 @@ cc_test {
         "TimerProvider_test.cpp",
         "TestInputListener.cpp",
         "TouchpadInputMapper_test.cpp",
+        "MultiTouchInputMapper_test.cpp",
         "KeyboardInputMapper_test.cpp",
         "UinputDevice.cpp",
         "UnwantedInteractionBlocker_test.cpp",

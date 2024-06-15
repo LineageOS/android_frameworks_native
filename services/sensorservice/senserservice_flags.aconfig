@@ -1,0 +1,16 @@
+package: "com.android.frameworks.sensorservice.flags"
+container: "system"
+
+flag {
+  name: "dynamic_sensor_hal_reconnect_handling"
+  namespace: "sensors"
+  description: "This flag controls if the dynamic sensor data will be clean up after HAL is disconnected."
+  bug: "307782607"
+}
+
+flag {
+  name: "sensor_device_on_dynamic_sensor_disconnected"
+  namespace: "sensors"
+  description: "This flag controls if the callback onDynamicSensorsDisconnected is implemented or not."
+  bug: "316958439"
+}

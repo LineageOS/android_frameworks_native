@@ -17,6 +17,8 @@
 #define LOG_TAG "AHardwareBuffer_test"
 //#define LOG_NDEBUG 0
 
+#include <android-base/properties.h>
+#include <android/data_space.h>
 #include <android/hardware/graphics/common/1.0/types.h>
 #include <gtest/gtest.h>
 #include <private/android/AHardwareBufferHelpers.h>
@@ -25,6 +27,10 @@
 
 using namespace android;
 using android::hardware::graphics::common::V1_0::BufferUsage;
+
+static bool IsCuttlefish() {
+    return ::android::base::GetProperty("ro.product.board", "") == "cutf";
+}
 
 static ::testing::AssertionResult BuildHexFailureMessage(uint64_t expected,
         uint64_t actual, const char* type) {
@@ -169,4 +175,84 @@ TEST(AHardwareBufferTest, GetIdTest) {
     EXPECT_NE(id2, 0);
 
     EXPECT_NE(id1, id2);
+}
+
+TEST(AHardwareBufferTest, Allocate2NoExtras) {
+    AHardwareBuffer_Desc desc{
+            .width = 64,
+            .height = 1,
+            .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_BLOB,
+            .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN,
+            .stride = 0,
+    };
+
+    AHardwareBuffer* buffer = nullptr;
+    ASSERT_EQ(0, AHardwareBuffer_allocateWithOptions(&desc, nullptr, 0, &buffer));
+    uint64_t id = 0;
+    EXPECT_EQ(0, AHardwareBuffer_getId(buffer, &id));
+    EXPECT_NE(0, id);
+    AHardwareBuffer_Desc desc2{};
+    AHardwareBuffer_describe(buffer, &desc2);
+    EXPECT_EQ(desc.width, desc2.width);
+    EXPECT_EQ(desc.height, desc2.height);
+    EXPECT_GE(desc2.stride, desc2.width);
+
+    AHardwareBuffer_release(buffer);
+}
+
+TEST(AHardwareBufferTest, Allocate2WithExtras) {
+    if (!IsCuttlefish()) {
+        GTEST_SKIP() << "Unknown gralloc HAL, cannot test extras";
+    }
+
+    AHardwareBuffer_Desc desc{
+            .width = 64,
+            .height = 48,
+            .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
+            .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN,
+            .stride = 0,
+    };
+
+    AHardwareBuffer* buffer = nullptr;
+    std::array<AHardwareBufferLongOptions, 1> extras = {{
+            {.name = "android.hardware.graphics.common.Dataspace", ADATASPACE_DISPLAY_P3},
+    }};
+    ASSERT_EQ(0, AHardwareBuffer_allocateWithOptions(&desc, extras.data(), extras.size(), &buffer));
+    uint64_t id = 0;
+    EXPECT_EQ(0, AHardwareBuffer_getId(buffer, &id));
+    EXPECT_NE(0, id);
+    AHardwareBuffer_Desc desc2{};
+    AHardwareBuffer_describe(buffer, &desc2);
+    EXPECT_EQ(desc.width, desc2.width);
+    EXPECT_EQ(desc.height, desc2.height);
+    EXPECT_GE(desc2.stride, desc2.width);
+
+    EXPECT_EQ(ADATASPACE_DISPLAY_P3, AHardwareBuffer_getDataSpace(buffer));
+
+    AHardwareBuffer_release(buffer);
+}
+
+TEST(AHardwareBufferTest, GetSetDataspace) {
+    AHardwareBuffer_Desc desc{
+            .width = 64,
+            .height = 48,
+            .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
+            .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN,
+            .stride = 0,
+    };
+
+    AHardwareBuffer* buffer = nullptr;
+    ASSERT_EQ(0, AHardwareBuffer_allocate(&desc, &buffer));
+
+    EXPECT_EQ(ADATASPACE_UNKNOWN, AHardwareBuffer_getDataSpace(buffer));
+    AHardwareBufferStatus status = AHardwareBuffer_setDataSpace(buffer, ADATASPACE_DISPLAY_P3);
+    if (status != AHARDWAREBUFFER_STATUS_UNSUPPORTED) {
+        EXPECT_EQ(0, status);
+        EXPECT_EQ(ADATASPACE_DISPLAY_P3, AHardwareBuffer_getDataSpace(buffer));
+    }
+
+    AHardwareBuffer_release(buffer);
 }

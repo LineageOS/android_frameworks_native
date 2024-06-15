@@ -233,12 +233,12 @@ binder::Status checkArgumentFileName(const std::string& path) {
     return ok();
 }
 
-binder::Status checkUidInAppRange(int32_t appUid) {
-    if (FIRST_APPLICATION_UID <= appUid && appUid <= LAST_APPLICATION_UID) {
+binder::Status checkArgumentAppId(int32_t appId) {
+    if (FIRST_APPLICATION_UID <= appId && appId <= LAST_APPLICATION_UID) {
         return ok();
     }
     return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
-                     StringPrintf("UID %d is outside of the range", appUid));
+                     StringPrintf("appId %d is outside of the range", appId));
 }
 
 #define ENFORCE_UID(uid) {                                  \
@@ -301,12 +301,12 @@ binder::Status checkUidInAppRange(int32_t appUid) {
         }                                                      \
     }
 
-#define CHECK_ARGUMENT_UID_IN_APP_RANGE(uid)               \
-    {                                                      \
-        binder::Status status = checkUidInAppRange((uid)); \
-        if (!status.isOk()) {                              \
-            return status;                                 \
-        }                                                  \
+#define CHECK_ARGUMENT_APP_ID(appId)                         \
+    {                                                        \
+        binder::Status status = checkArgumentAppId((appId)); \
+        if (!status.isOk()) {                                \
+            return status;                                   \
+        }                                                    \
     }
 
 #ifdef GRANULAR_LOCKS
@@ -410,7 +410,7 @@ using PackageLockGuard = std::lock_guard<PackageLock>;
 }  // namespace
 
 binder::Status InstalldNativeService::FsveritySetupAuthToken::authenticate(
-        const ParcelFileDescriptor& authFd, int32_t appUid, int32_t userId) {
+        const ParcelFileDescriptor& authFd, int32_t uid) {
     int open_flags = fcntl(authFd.get(), F_GETFL);
     if (open_flags < 0) {
         return exception(binder::Status::EX_SERVICE_SPECIFIC, "fcntl failed");
@@ -425,9 +425,8 @@ binder::Status InstalldNativeService::FsveritySetupAuthToken::authenticate(
         return exception(binder::Status::EX_SECURITY, "Not a regular file");
     }
     // Don't accept a file owned by a different app.
-    uid_t uid = multiuser_get_uid(userId, appUid);
-    if (this->mStatFromAuthFd.st_uid != uid) {
-        return exception(binder::Status::EX_SERVICE_SPECIFIC, "File not owned by appUid");
+    if (this->mStatFromAuthFd.st_uid != (uid_t)uid) {
+        return exception(binder::Status::EX_SERVICE_SPECIFIC, "File not owned by uid");
     }
     return ok();
 }
@@ -3974,7 +3973,7 @@ binder::Status InstalldNativeService::getOdexVisibility(
 // attacker-in-the-middle cannot enable fs-verity on arbitrary app files. If the FD is not writable,
 // return null.
 //
-// appUid and userId are passed for additional ownership check, such that one app can not be
+// app process uid is passed for additional ownership check, such that one app can not be
 // authenticated for another app's file. These parameters are assumed trusted for this purpose of
 // consistency check.
 //
@@ -3982,13 +3981,13 @@ binder::Status InstalldNativeService::getOdexVisibility(
 // Since enabling fs-verity to a file requires no outstanding writable FD, passing the authFd to the
 // server allows the server to hold the only reference (as long as the client app doesn't).
 binder::Status InstalldNativeService::createFsveritySetupAuthToken(
-        const ParcelFileDescriptor& authFd, int32_t appUid, int32_t userId,
+        const ParcelFileDescriptor& authFd, int32_t uid,
         sp<IFsveritySetupAuthToken>* _aidl_return) {
-    CHECK_ARGUMENT_UID_IN_APP_RANGE(appUid);
-    ENFORCE_VALID_USER(userId);
+    CHECK_ARGUMENT_APP_ID(multiuser_get_app_id(uid));
+    ENFORCE_VALID_USER(multiuser_get_user_id(uid));
 
     auto token = sp<FsveritySetupAuthToken>::make();
-    binder::Status status = token->authenticate(authFd, appUid, userId);
+    binder::Status status = token->authenticate(authFd, uid);
     if (!status.isOk()) {
         return status;
     }
@@ -4018,24 +4017,37 @@ binder::Status InstalldNativeService::enableFsverity(const sp<IFsveritySetupAuth
         return exception(binder::Status::EX_ILLEGAL_ARGUMENT, "Received a null auth token");
     }
 
-    // Authenticate to check the targeting file is the same inode as the authFd.
+    // Authenticate to check the targeting file is the same inode as the authFd. With O_PATH, we
+    // prevent a malicious client from blocking installd by providing a path to FIFO. After the
+    // authentication, the actual open is safe.
     sp<IBinder> authTokenBinder = IInterface::asBinder(authToken)->localBinder();
     if (authTokenBinder == nullptr) {
         return exception(binder::Status::EX_SECURITY, "Received a non-local auth token");
     }
-    auto authTokenInstance = sp<FsveritySetupAuthToken>::cast(authTokenBinder);
-    unique_fd rfd(open(filePath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
-    struct stat stFromPath;
-    if (fstat(rfd.get(), &stFromPath) < 0) {
-        *_aidl_return = errno;
+    unique_fd pathFd(open(filePath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH));
+    // Returns a constant errno to avoid one app probing file existence of the others, before the
+    // authentication is done.
+    const int kFixedErrno = EPERM;
+    if (pathFd.get() < 0) {
+        PLOG(DEBUG) << "Failed to open the path";
+        *_aidl_return = kFixedErrno;
         return ok();
     }
+    std::string procFdPath(StringPrintf("/proc/self/fd/%d", pathFd.get()));
+    struct stat stFromPath;
+    if (stat(procFdPath.c_str(), &stFromPath) < 0) {
+        PLOG(DEBUG) << "Failed to stat proc fd " << pathFd.get() << " -> " << filePath;
+        *_aidl_return = kFixedErrno;
+        return ok();
+    }
+    auto authTokenInstance = sp<FsveritySetupAuthToken>::cast(authTokenBinder);
     if (!authTokenInstance->isSameStat(stFromPath)) {
         LOG(DEBUG) << "FD authentication failed";
-        *_aidl_return = EPERM;
+        *_aidl_return = kFixedErrno;
         return ok();
     }
 
+    unique_fd rfd(open(procFdPath.c_str(), O_RDONLY | O_CLOEXEC));
     fsverity_enable_arg arg = {};
     arg.version = 1;
     arg.hash_algorithm = FS_VERITY_HASH_ALG_SHA256;

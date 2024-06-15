@@ -17,4 +17,4 @@
 
 package android.view;
 
-@JavaOnlyStableParcelable @NdkOnlyStableParcelable parcelable Surface cpp_header "gui/view/Surface.h" ndk_header "android/native_window_aidl.h";
+@JavaOnlyStableParcelable @NdkOnlyStableParcelable @RustOnlyStableParcelable parcelable Surface cpp_header "gui/view/Surface.h" ndk_header "android/native_window_aidl.h" rust_type "nativewindow::Surface";

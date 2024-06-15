@@ -30,24 +30,12 @@ void MultiTouchMotionAccumulator::configure(const InputDeviceContext& deviceCont
                                             size_t slotCount, bool usingSlotsProtocol) {
     mUsingSlotsProtocol = usingSlotsProtocol;
     mSlots = std::vector<Slot>(slotCount);
+    populateCurrentSlot(deviceContext);
+}
 
-    mCurrentSlot = -1;
-    if (mUsingSlotsProtocol) {
-        // Query the driver for the current slot index and use it as the initial slot before we
-        // start reading events from the device.  It is possible that the current slot index will
-        // not be the same as it was when the first event was written into the evdev buffer, which
-        // means the input mapper could start out of sync with the initial state of the events in
-        // the evdev buffer. In the extremely unlikely case that this happens, the data from two
-        // slots will be confused until the next ABS_MT_SLOT event is received. This can cause the
-        // touch point to "jump", but at least there will be no stuck touches.
-        int32_t initialSlot;
-        if (const auto status = deviceContext.getAbsoluteAxisValue(ABS_MT_SLOT, &initialSlot);
-            status == OK) {
-            mCurrentSlot = initialSlot;
-        } else {
-            ALOGD("Could not retrieve current multi-touch slot index. status=%d", status);
-        }
-    }
+void MultiTouchMotionAccumulator::reset(const InputDeviceContext& deviceContext) {
+    resetSlots();
+    syncSlots(deviceContext);
 }
 
 void MultiTouchMotionAccumulator::resetSlots() {
@@ -84,59 +72,45 @@ void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
             if (!mUsingSlotsProtocol) {
                 slot.mInUse = true;
             }
-
-            switch (rawEvent->code) {
-                case ABS_MT_POSITION_X:
-                    slot.mAbsMtPositionX = rawEvent->value;
-                    warnIfNotInUse(*rawEvent, slot);
-                    break;
-                case ABS_MT_POSITION_Y:
-                    slot.mAbsMtPositionY = rawEvent->value;
-                    warnIfNotInUse(*rawEvent, slot);
-                    break;
-                case ABS_MT_TOUCH_MAJOR:
-                    slot.mAbsMtTouchMajor = rawEvent->value;
-                    break;
-                case ABS_MT_TOUCH_MINOR:
-                    slot.mAbsMtTouchMinor = rawEvent->value;
-                    slot.mHaveAbsMtTouchMinor = true;
-                    break;
-                case ABS_MT_WIDTH_MAJOR:
-                    slot.mAbsMtWidthMajor = rawEvent->value;
-                    break;
-                case ABS_MT_WIDTH_MINOR:
-                    slot.mAbsMtWidthMinor = rawEvent->value;
-                    slot.mHaveAbsMtWidthMinor = true;
-                    break;
-                case ABS_MT_ORIENTATION:
-                    slot.mAbsMtOrientation = rawEvent->value;
-                    break;
-                case ABS_MT_TRACKING_ID:
-                    if (mUsingSlotsProtocol && rawEvent->value < 0) {
-                        // The slot is no longer in use but it retains its previous contents,
-                        // which may be reused for subsequent touches.
-                        slot.mInUse = false;
-                    } else {
-                        slot.mInUse = true;
-                        slot.mAbsMtTrackingId = rawEvent->value;
-                    }
-                    break;
-                case ABS_MT_PRESSURE:
-                    slot.mAbsMtPressure = rawEvent->value;
-                    break;
-                case ABS_MT_DISTANCE:
-                    slot.mAbsMtDistance = rawEvent->value;
-                    break;
-                case ABS_MT_TOOL_TYPE:
-                    slot.mAbsMtToolType = rawEvent->value;
-                    slot.mHaveAbsMtToolType = true;
-                    break;
+            if (rawEvent->code == ABS_MT_POSITION_X || rawEvent->code == ABS_MT_POSITION_Y) {
+                warnIfNotInUse(*rawEvent, slot);
             }
+            slot.populateAxisValue(rawEvent->code, rawEvent->value);
         }
     } else if (rawEvent->type == EV_SYN && rawEvent->code == SYN_MT_REPORT) {
         // MultiTouch Sync: The driver has returned all data for *one* of the pointers.
         mCurrentSlot += 1;
     }
+}
+
+void MultiTouchMotionAccumulator::syncSlots(const InputDeviceContext& deviceContext) {
+    if (!mUsingSlotsProtocol) {
+        return;
+    }
+    constexpr std::array<int32_t, 11> axisCodes = {ABS_MT_POSITION_X,  ABS_MT_POSITION_Y,
+                                                   ABS_MT_TOUCH_MAJOR, ABS_MT_TOUCH_MINOR,
+                                                   ABS_MT_WIDTH_MAJOR, ABS_MT_WIDTH_MINOR,
+                                                   ABS_MT_ORIENTATION, ABS_MT_TRACKING_ID,
+                                                   ABS_MT_PRESSURE,    ABS_MT_DISTANCE,
+                                                   ABS_MT_TOOL_TYPE};
+    const size_t numSlots = mSlots.size();
+    for (int32_t axisCode : axisCodes) {
+        if (!deviceContext.hasAbsoluteAxis(axisCode)) {
+            continue;
+        }
+        const auto result = deviceContext.getMtSlotValues(axisCode, numSlots);
+        if (result.ok()) {
+            const std::vector<int32_t>& mtSlotValues = result.value();
+            for (size_t i = 1; i <= numSlots; ++i) {
+                // The returned slot values are in a 1-indexed vector of size numSlots + 1.
+                mSlots[i - 1].populateAxisValue(axisCode, mtSlotValues[i]);
+            }
+        } else {
+            ALOGE("Could not retrieve multi-touch slot value for axis=%d error=%s status=%d",
+                  axisCode, result.error().message().c_str(), result.error().code().value());
+        }
+    }
+    populateCurrentSlot(deviceContext);
 }
 
 void MultiTouchMotionAccumulator::finishSync() {
@@ -160,6 +134,21 @@ size_t MultiTouchMotionAccumulator::getActiveSlotsCount() const {
                          [](const Slot& slot) { return slot.mInUse; });
 }
 
+void MultiTouchMotionAccumulator::populateCurrentSlot(
+        const android::InputDeviceContext& deviceContext) {
+    if (!mUsingSlotsProtocol) {
+        return;
+    }
+    int32_t initialSlot;
+    if (const auto status = deviceContext.getAbsoluteAxisValue(ABS_MT_SLOT, &initialSlot);
+        status == OK) {
+        mCurrentSlot = initialSlot;
+    } else {
+        ALOGE("Could not retrieve current multi-touch slot index. status=%s",
+              statusToString(status).c_str());
+    }
+}
+
 // --- MultiTouchMotionAccumulator::Slot ---
 
 ToolType MultiTouchMotionAccumulator::Slot::getToolType() const {
@@ -174,6 +163,54 @@ ToolType MultiTouchMotionAccumulator::Slot::getToolType() const {
         }
     }
     return ToolType::UNKNOWN;
+}
+
+void MultiTouchMotionAccumulator::Slot::populateAxisValue(int32_t axisCode, int32_t value) {
+    switch (axisCode) {
+        case ABS_MT_POSITION_X:
+            mAbsMtPositionX = value;
+            break;
+        case ABS_MT_POSITION_Y:
+            mAbsMtPositionY = value;
+            break;
+        case ABS_MT_TOUCH_MAJOR:
+            mAbsMtTouchMajor = value;
+            break;
+        case ABS_MT_TOUCH_MINOR:
+            mAbsMtTouchMinor = value;
+            mHaveAbsMtTouchMinor = true;
+            break;
+        case ABS_MT_WIDTH_MAJOR:
+            mAbsMtWidthMajor = value;
+            break;
+        case ABS_MT_WIDTH_MINOR:
+            mAbsMtWidthMinor = value;
+            mHaveAbsMtWidthMinor = true;
+            break;
+        case ABS_MT_ORIENTATION:
+            mAbsMtOrientation = value;
+            break;
+        case ABS_MT_TRACKING_ID:
+            if (value < 0) {
+                // The slot is no longer in use but it retains its previous contents,
+                // which may be reused for subsequent touches.
+                mInUse = false;
+            } else {
+                mInUse = true;
+                mAbsMtTrackingId = value;
+            }
+            break;
+        case ABS_MT_PRESSURE:
+            mAbsMtPressure = value;
+            break;
+        case ABS_MT_DISTANCE:
+            mAbsMtDistance = value;
+            break;
+        case ABS_MT_TOOL_TYPE:
+            mAbsMtToolType = value;
+            mHaveAbsMtToolType = true;
+            break;
+    }
 }
 
 } // namespace android

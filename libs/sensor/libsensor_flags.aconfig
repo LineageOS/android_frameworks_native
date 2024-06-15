@@ -1,0 +1,9 @@
+package: "com.android.hardware.libsensor.flags"
+
+flag {
+  name: "sensormanager_ping_binder"
+  namespace: "sensors"
+  description: "Whether to pingBinder on SensorManager init"
+  bug: "322228259"
+  is_fixed_read_only: true
+}

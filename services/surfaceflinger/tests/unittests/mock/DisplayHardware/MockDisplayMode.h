@@ -24,7 +24,7 @@ inline DisplayMode::Builder createDisplayModeBuilder(
         DisplayModeId modeId, Fps displayRefreshRate, int32_t group = 0,
         ui::Size resolution = ui::Size(1920, 1080),
         PhysicalDisplayId displayId = PhysicalDisplayId::fromPort(0)) {
-    return DisplayMode::Builder(hal::HWConfigId(modeId.value()))
+    return DisplayMode::Builder(hal::HWConfigId(ftl::to_underlying(modeId)))
             .setId(modeId)
             .setPhysicalDisplayId(displayId)
             .setVsyncPeriod(displayRefreshRate.getPeriodNsecs())
@@ -45,8 +45,8 @@ inline DisplayModePtr createDisplayMode(PhysicalDisplayId displayId, DisplayMode
 }
 
 inline DisplayModePtr createVrrDisplayMode(
-        DisplayModeId modeId, Fps displayRefreshRate, hal::VrrConfig vrrConfig, int32_t group = 0,
-        ui::Size resolution = ui::Size(1920, 1080),
+        DisplayModeId modeId, Fps displayRefreshRate, std::optional<hal::VrrConfig> vrrConfig,
+        int32_t group = 0, ui::Size resolution = ui::Size(1920, 1080),
         PhysicalDisplayId displayId = PhysicalDisplayId::fromPort(0)) {
     return createDisplayModeBuilder(modeId, displayRefreshRate, group, resolution, displayId)
             .setVrrConfig(std::move(vrrConfig))

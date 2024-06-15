@@ -1,4 +1,7 @@
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 package: "com.android.graphics.surfaceflinger.flags"
+container: "system"
 
 flag {
   name: "misc1"
@@ -16,13 +19,6 @@ flag {
   is_fixed_read_only: true
 }
 
-flag{
-  name: "late_boot_misc2"
-  namespace: "core_graphics"
-  description: "This flag controls minor miscellaneous SurfaceFlinger changes. Cannot be read before boot finished!"
-  bug: "297389311"
-}
-
 flag {
   name: "vrr_config"
   namespace: "core_graphics"
@@ -31,19 +27,14 @@ flag {
   is_fixed_read_only: true
 }
 
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
   name: "enable_layer_command_batching"
   namespace: "core_graphics"
   description: "This flag controls batching on createLayer/destroyLayer command with executeCommand."
   bug: "290685621"
   is_fixed_read_only: true
-}
-
-flag {
-  name: "dont_skip_on_early"
-  namespace: "core_graphics"
-  description: "This flag is guarding the behaviour where SurfaceFlinger is trying to opportunistically present a frame when the configuration change from late to early"
-  bug: "273702768"
 }
 
 flag {
@@ -61,6 +52,8 @@ flag {
   bug: "283055450"
   is_fixed_read_only: true
 }
+
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
 
 flag {
   name: "hotplug2"
@@ -86,6 +79,8 @@ flag {
   is_fixed_read_only: true
 }
 
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
   name: "refresh_rate_overlay_on_external_display"
   namespace: "core_graphics"
@@ -98,10 +93,23 @@ flag {
   namespace: "core_graphics"
   description: "Whether to use the closest known refresh rate to determine the fps consistency."
   bug: "299201319"
+  is_fixed_read_only: true
 }
 
+# This flag is broken.
+# See alternative one: cache_when_source_crop_layer_only_moved
+# flag {
+#   name: "cache_if_source_crop_layer_only_moved"
+#   namespace: "core_graphics"
+#   description: "do not flatten layers if source crop is only moved"
+#   bug: "305718400"
+#   is_fixed_read_only: true
+# }
+
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
-  name: "cache_if_source_crop_layer_only_moved"
+  name: "cache_when_source_crop_layer_only_moved"
   namespace: "core_graphics"
   description: "do not flatten layers if source crop is only moved"
   bug: "305718400"
@@ -132,6 +140,8 @@ flag {
   is_fixed_read_only: true
 }
 
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
   name: "game_default_frame_rate"
   namespace: "game"
@@ -139,3 +149,77 @@ flag {
   bug: "286084594"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "vulkan_renderengine"
+  namespace: "core_graphics"
+  description: "Use Vulkan backend in RenderEngine prior to switching to Graphite."
+  bug: "293371537"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "graphite_renderengine"
+  namespace: "core_graphics"
+  description: "Use Skia's Graphite Vulkan backend in RenderEngine."
+  bug: "293371537"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "screenshot_fence_preservation"
+  namespace: "core_graphics"
+  description: "Bug fix around screenshot fences"
+  bug: "302703346"
+  is_fixed_read_only: true
+}
+
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
+flag {
+  name: "renderable_buffer_usage"
+  namespace: "core_graphics"
+  description: "Decide whether an ExternalTexture isRenderable based on its buffer's usage."
+  bug: "305445199"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "restore_blur_step"
+  namespace: "core_graphics"
+  description: "Restore drawing the blur input prior to drawing blurred content."
+  bug: "255921628"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
+flag {
+  name: "dont_skip_on_early_ro"
+  namespace: "core_graphics"
+  description: "This flag is guarding the behaviour where SurfaceFlinger is trying to opportunistically present a frame when the configuration change from late to early"
+  bug: "273702768"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "protected_if_client"
+  namespace: "core_graphics"
+  description: "Only set the RenderSurface to protected if protected layers are in client composition."
+  bug: "307674749"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig

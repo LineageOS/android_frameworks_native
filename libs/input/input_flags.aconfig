@@ -1,4 +1,5 @@
 package: "com.android.input.flags"
+container: "system"
 
 flag {
   name: "enable_outbound_event_verification"
@@ -26,6 +27,13 @@ flag {
   namespace: "input"
   description: "Set to true to enable timer support for the touchpad Gestures library"
   bug: "297192727"
+ }
+
+ flag {
+  name: "enable_input_event_tracing"
+  namespace: "input"
+  description: "Set to true to enable input event tracing, including always-on tracing on non-user builds"
+  bug: "210460522"
 }
 
 flag {
@@ -52,15 +60,15 @@ flag {
 flag {
   name: "enable_touchpad_typing_palm_rejection"
   namespace: "input"
-  description: "Enable additional palm rejection on touchpad while typing"
+  description: "Enabling additional touchpad palm rejection will disable the tap to click while the user is typing on a physical keyboard"
   bug: "301055381"
 }
 
 flag {
-  name: "remove_app_switch_drops"
+  name: "enable_v2_touchpad_typing_palm_rejection"
   namespace: "input"
-  description: "Remove the logic of dropping events due to pending app switch"
-  bug: "284808102"
+  description: "In addition to touchpad palm rejection v1, v2 will also cancel ongoing move gestures while typing and add delay in re-enabling the tap to click."
+  bug: "301055381"
 }
 
 flag {
@@ -89,4 +97,32 @@ flag {
   namespace: "input"
   description: "Remove pointer event tracking in WM after the Pointer Icon Refactor"
   bug: "315321016"
+}
+
+flag {
+  name: "enable_new_mouse_pointer_ballistics"
+  namespace: "input"
+  description: "Change the acceleration curves for mouse pointer movements to match the touchpad ones"
+  bug: "315313622"
+}
+
+flag {
+  name: "rate_limit_user_activity_poke_in_dispatcher"
+  namespace: "input"
+  description: "Move user-activity poke rate-limiting from PowerManagerService to InputDispatcher."
+  bug: "320499729"
+}
+
+flag {
+  name: "input_device_view_behavior_api"
+  namespace: "input"
+  description: "Controls the API to provide InputDevice view behavior."
+  bug: "246946631"
+}
+
+flag {
+  name: "enable_touchpad_fling_stop"
+  namespace: "input"
+  description: "Enable fling scrolling to be stopped by putting a finger on the touchpad again"
+  bug: "281106755"
 }

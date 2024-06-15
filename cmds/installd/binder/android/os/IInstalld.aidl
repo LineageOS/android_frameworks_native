@@ -143,8 +143,7 @@ interface IInstalld {
         //
         // We don't necessarily need a method here, so it's left blank intentionally.
     }
-    IFsveritySetupAuthToken createFsveritySetupAuthToken(in ParcelFileDescriptor authFd, int appUid,
-            int userId);
+    IFsveritySetupAuthToken createFsveritySetupAuthToken(in ParcelFileDescriptor authFd, int uid);
     int enableFsverity(in IFsveritySetupAuthToken authToken, @utf8InCpp String filePath,
             @utf8InCpp String packageName);
 

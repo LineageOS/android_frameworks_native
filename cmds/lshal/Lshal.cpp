@@ -232,6 +232,11 @@ Status Lshal::main(const Arg &arg) {
         return static_cast<HelpCommand*>(help)->usageOfCommand(mCommand);
     }
 
+    // After Lshal::main() finishes, caller may call _exit(), causing debug
+    // information to prematurely ends. Hence flush().
+    err().flush();
+    out().flush();
+
     return status;
 }
 
@@ -248,6 +253,18 @@ const sp<IServiceManager> &Lshal::serviceManager() const {
 
 const sp<IServiceManager> &Lshal::passthroughManager() const {
     return mPassthroughManager;
+}
+
+void Lshal::setWaitTimeForTest(std::chrono::milliseconds ipcCallWait,
+                               std::chrono::milliseconds debugDumpWait) {
+    mIpcCallWait = ipcCallWait;
+    mDebugDumpWait = debugDumpWait;
+}
+std::chrono::milliseconds Lshal::getIpcCallWait() const {
+    return mIpcCallWait;
+}
+std::chrono::milliseconds Lshal::getDebugDumpWait() const {
+    return mDebugDumpWait;
 }
 
 }  // namespace lshal

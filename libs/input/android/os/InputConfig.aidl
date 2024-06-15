@@ -150,4 +150,11 @@ enum InputConfig {
      * likely a duplicate window with the same client token, but different bounds.
      */
     CLONE                        = 1 << 16,
+
+    /**
+     * If the stylus is currently down *anywhere* on the screen, new touches will not be delivered
+     * to the window with this flag. This helps prevent unexpected clicks on some system windows,
+     * like StatusBar and TaskBar.
+     */
+    GLOBAL_STYLUS_BLOCKS_TOUCH   = 1 << 17,
 }

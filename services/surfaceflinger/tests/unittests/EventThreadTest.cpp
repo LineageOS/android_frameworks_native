@@ -55,6 +55,9 @@ constexpr PhysicalDisplayId DISPLAY_ID_64BIT =
 
 constexpr std::chrono::duration VSYNC_PERIOD(16ms);
 
+constexpr int HDCP_V1 = 2;
+constexpr int HDCP_V2 = 3;
+
 } // namespace
 
 class EventThreadTest : public testing::Test, public IEventThreadCallback {
@@ -82,6 +85,7 @@ protected:
     bool throttleVsync(TimePoint, uid_t) override;
     Period getVsyncPeriod(uid_t) override;
     void resync() override;
+    void onExpectedPresentTimePosted(TimePoint) override;
 
     void setupEventThread();
     sp<MockEventThreadConnection> createConnection(ConnectionEventRecorder& recorder,
@@ -104,6 +108,7 @@ protected:
                                                       int32_t expectedConfigId,
                                                       nsecs_t expectedVsyncPeriod);
     void expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid_t);
+    void expectOnExpectedPresentTimePosted(nsecs_t expectedPresentTime);
     void expectUidFrameRateMappingEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
                                                             std::vector<FrameRateOverride>);
 
@@ -112,14 +117,16 @@ protected:
         mThread->onVsync(expectedPresentationTime, timestamp, deadlineTimestamp);
     }
 
+    static constexpr scheduler::ScheduleResult kScheduleResult{TimePoint::fromNs(0),
+                                                               TimePoint::fromNs(0)};
     AsyncCallRecorderWithCannedReturn<
             scheduler::ScheduleResult (*)(scheduler::VSyncDispatch::CallbackToken,
                                           scheduler::VSyncDispatch::ScheduleTiming)>
-            mVSyncCallbackScheduleRecorder{0};
+            mVSyncCallbackScheduleRecorder{kScheduleResult};
     AsyncCallRecorderWithCannedReturn<
             scheduler::ScheduleResult (*)(scheduler::VSyncDispatch::CallbackToken,
                                           scheduler::VSyncDispatch::ScheduleTiming)>
-            mVSyncCallbackUpdateRecorder{0};
+            mVSyncCallbackUpdateRecorder{kScheduleResult};
     AsyncCallRecorderWithCannedReturn<
             scheduler::VSyncDispatch::CallbackToken (*)(scheduler::VSyncDispatch::Callback,
                                                         std::string)>
@@ -128,6 +135,7 @@ protected:
             mVSyncCallbackUnregisterRecorder;
     AsyncCallRecorder<void (*)()> mResyncCallRecorder;
     AsyncCallRecorder<void (*)(nsecs_t, uid_t)> mThrottleVsyncCallRecorder;
+    AsyncCallRecorder<void (*)(nsecs_t)> mOnExpectedPresentTimePostedRecorder;
     ConnectionEventRecorder mConnectionEventCallRecorder{0};
     ConnectionEventRecorder mThrottledConnectionEventCallRecorder{0};
 
@@ -187,6 +195,10 @@ void EventThreadTest::resync() {
     mResyncCallRecorder.recordCall();
 }
 
+void EventThreadTest::onExpectedPresentTimePosted(TimePoint expectedPresentTime) {
+    mOnExpectedPresentTimePostedRecorder.recordCall(expectedPresentTime.ns());
+}
+
 void EventThreadTest::setupEventThread() {
     mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
     mThread = std::make_unique<impl::EventThread>("EventThreadTest", mVsyncSchedule,
@@ -239,6 +251,12 @@ void EventThreadTest::expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid
     ASSERT_TRUE(args.has_value());
     EXPECT_EQ(expectedTimestamp, std::get<0>(args.value()));
     EXPECT_EQ(uid, std::get<1>(args.value()));
+}
+
+void EventThreadTest::expectOnExpectedPresentTimePosted(nsecs_t expectedPresentTime) {
+    auto args = mOnExpectedPresentTimePostedRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value());
+    EXPECT_EQ(expectedPresentTime, std::get<0>(args.value()));
 }
 
 void EventThreadTest::expectVsyncEventReceivedByConnection(
@@ -407,6 +425,7 @@ TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
     onVSyncEvent(123, 456, 789);
     expectThrottleVsyncReceived(456, mConnectionUid);
     expectVsyncEventReceivedByConnection(123, 1u);
+    expectOnExpectedPresentTimePosted(456);
 
     // EventThread is requesting one more callback due to VsyncRequest::SingleSuppressCallback
     expectVSyncCallbackScheduleReceived(true);
@@ -471,7 +490,7 @@ TEST_F(EventThreadTest, getLatestVsyncEventData) {
 
     mock::VSyncTracker& mockTracker =
             *static_cast<mock::VSyncTracker*>(&mVsyncSchedule->getTracker());
-    EXPECT_CALL(mockTracker, nextAnticipatedVSyncTimeFrom(_))
+    EXPECT_CALL(mockTracker, nextAnticipatedVSyncTimeFrom(_, _))
             .WillOnce(Return(preferredExpectedPresentationTime));
 
     VsyncEventData vsyncEventData = mThread->getLatestVsyncEventData(mConnection);
@@ -559,16 +578,19 @@ TEST_F(EventThreadTest, setVsyncRateOnePostsAllEventsToThatConnection) {
     onVSyncEvent(123, 456, 789);
     expectThrottleVsyncReceived(456, mConnectionUid);
     expectVsyncEventReceivedByConnection(123, 1u);
+    expectOnExpectedPresentTimePosted(456);
 
     // A second event should go to the same places.
     onVSyncEvent(456, 123, 0);
     expectThrottleVsyncReceived(123, mConnectionUid);
     expectVsyncEventReceivedByConnection(456, 2u);
+    expectOnExpectedPresentTimePosted(123);
 
     // A third event should go to the same places.
     onVSyncEvent(789, 777, 111);
     expectThrottleVsyncReceived(777, mConnectionUid);
     expectVsyncEventReceivedByConnection(789, 3u);
+    expectOnExpectedPresentTimePosted(777);
 }
 
 TEST_F(EventThreadTest, setVsyncRateTwoPostsEveryOtherEventToThatConnection) {
@@ -831,6 +853,19 @@ TEST_F(EventThreadTest, requestNextVsyncWithThrottleVsyncDoesntPostVSync) {
     // yet
     onVSyncEvent(456, 123, 0);
     expectVSyncCallbackScheduleReceived(true);
+}
+
+TEST_F(EventThreadTest, postHcpLevelsChanged) {
+    setupEventThread();
+
+    mThread->onHdcpLevelsChanged(EXTERNAL_DISPLAY_ID, HDCP_V1, HDCP_V2);
+    auto args = mConnectionEventCallRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value());
+    const auto& event = std::get<0>(args.value());
+    EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE, event.header.type);
+    EXPECT_EQ(EXTERNAL_DISPLAY_ID, event.header.displayId);
+    EXPECT_EQ(HDCP_V1, event.hdcpLevelsChange.connectedLevel);
+    EXPECT_EQ(HDCP_V2, event.hdcpLevelsChange.maxLevel);
 }
 
 } // namespace

@@ -7,6 +7,19 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+aconfig_declarations {
+    name: "sensorservice_flags",
+    package: "com.android.frameworks.sensorservice.flags",
+    container: "system",
+    srcs: ["senserservice_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "sensorservice_flags_c_lib",
+    aconfig_declarations: "sensorservice_flags",
+    host_supported: true,
+}
+
 cc_library {
     name: "libsensorservice",
 
@@ -70,6 +83,7 @@ cc_library {
         "android.hardware.sensors@2.1",
         "android.hardware.common-V2-ndk",
         "android.hardware.common.fmq-V1-ndk",
+        "server_configurable_flags",
     ],
 
     static_libs: [
@@ -77,6 +91,7 @@ cc_library {
         "android.hardware.sensors@1.0-convert",
         "android.hardware.sensors-V1-convert",
         "android.hardware.sensors-V2-ndk",
+        "sensorservice_flags_c_lib",
     ],
 
     generated_headers: ["framework-cppstream-protos"],

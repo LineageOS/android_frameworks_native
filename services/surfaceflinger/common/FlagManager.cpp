@@ -108,8 +108,6 @@ void FlagManager::dump(std::string& result) const {
     DUMP_SERVER_FLAG(use_skia_tracing);
 
     /// Trunk stable server flags ///
-    DUMP_SERVER_FLAG(late_boot_misc2);
-    DUMP_SERVER_FLAG(dont_skip_on_early);
     DUMP_SERVER_FLAG(refresh_rate_overlay_on_external_display);
 
     /// Trunk stable readonly flags ///
@@ -122,12 +120,18 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(multithreaded_present);
     DUMP_READ_ONLY_FLAG(add_sf_skipped_frames_to_trace);
     DUMP_READ_ONLY_FLAG(use_known_refresh_rate_for_fps_consistency);
-    DUMP_READ_ONLY_FLAG(cache_if_source_crop_layer_only_moved);
+    DUMP_READ_ONLY_FLAG(cache_when_source_crop_layer_only_moved);
     DUMP_READ_ONLY_FLAG(enable_fro_dependent_features);
     DUMP_READ_ONLY_FLAG(display_protected);
     DUMP_READ_ONLY_FLAG(fp16_client_target);
     DUMP_READ_ONLY_FLAG(game_default_frame_rate);
     DUMP_READ_ONLY_FLAG(enable_layer_command_batching);
+    DUMP_READ_ONLY_FLAG(screenshot_fence_preservation);
+    DUMP_READ_ONLY_FLAG(vulkan_renderengine);
+    DUMP_READ_ONLY_FLAG(renderable_buffer_usage);
+    DUMP_READ_ONLY_FLAG(restore_blur_step);
+    DUMP_READ_ONLY_FLAG(dont_skip_on_early_ro);
+    DUMP_READ_ONLY_FLAG(protected_if_client);
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
 #undef DUMP_FLAG_INTERVAL
@@ -195,23 +199,21 @@ FLAG_MANAGER_READ_ONLY_FLAG(hdcp_level_hal, "")
 FLAG_MANAGER_READ_ONLY_FLAG(multithreaded_present, "debug.sf.multithreaded_present")
 FLAG_MANAGER_READ_ONLY_FLAG(add_sf_skipped_frames_to_trace, "")
 FLAG_MANAGER_READ_ONLY_FLAG(use_known_refresh_rate_for_fps_consistency, "")
-FLAG_MANAGER_READ_ONLY_FLAG(cache_if_source_crop_layer_only_moved,
+FLAG_MANAGER_READ_ONLY_FLAG(cache_when_source_crop_layer_only_moved,
                             "debug.sf.cache_source_crop_only_moved")
 FLAG_MANAGER_READ_ONLY_FLAG(enable_fro_dependent_features, "")
 FLAG_MANAGER_READ_ONLY_FLAG(display_protected, "")
 FLAG_MANAGER_READ_ONLY_FLAG(fp16_client_target, "debug.sf.fp16_client_target")
 FLAG_MANAGER_READ_ONLY_FLAG(game_default_frame_rate, "")
 FLAG_MANAGER_READ_ONLY_FLAG(enable_layer_command_batching, "")
+FLAG_MANAGER_READ_ONLY_FLAG(screenshot_fence_preservation, "debug.sf.screenshot_fence_preservation")
+FLAG_MANAGER_READ_ONLY_FLAG(vulkan_renderengine, "debug.renderengine.vulkan")
+FLAG_MANAGER_READ_ONLY_FLAG(renderable_buffer_usage, "")
+FLAG_MANAGER_READ_ONLY_FLAG(restore_blur_step, "debug.renderengine.restore_blur_step")
+FLAG_MANAGER_READ_ONLY_FLAG(dont_skip_on_early_ro, "")
+FLAG_MANAGER_READ_ONLY_FLAG(protected_if_client, "")
 
 /// Trunk stable server flags ///
-FLAG_MANAGER_SERVER_FLAG(late_boot_misc2, "")
 FLAG_MANAGER_SERVER_FLAG(refresh_rate_overlay_on_external_display, "")
-
-/// Exceptions ///
-bool FlagManager::dont_skip_on_early() const {
-    // Even though this is a server writable flag, we do call it before boot completed, but that's
-    // fine since the decision is done per frame. We can't do caching though.
-    return flags::dont_skip_on_early();
-}
 
 } // namespace android

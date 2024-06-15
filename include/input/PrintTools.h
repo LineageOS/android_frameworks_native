@@ -117,11 +117,12 @@ std::string dumpMapKeys(const std::map<K, V>& map,
 template <typename T>
 std::string dumpVector(const std::vector<T>& values,
                        std::string (*valueToString)(const T&) = constToString) {
-    std::string dump = valueToString(values[0]);
-    for (size_t i = 1; i < values.size(); i++) {
-        dump += ", " + valueToString(values[i]);
+    std::string out;
+    for (const auto& value : values) {
+        out += out.empty() ? "[" : ", ";
+        out += valueToString(value);
     }
-    return dump;
+    return out.empty() ? "[]" : (out + "]");
 }
 
 const char* toString(bool value);

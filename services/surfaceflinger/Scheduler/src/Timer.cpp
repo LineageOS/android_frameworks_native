@@ -159,7 +159,7 @@ bool Timer::dispatch() {
         ALOGW("Failed to set SCHED_FIFO on dispatch thread");
     }
 
-    if (pthread_setname_np(pthread_self(), "TimerDispatch")) {
+    if (pthread_setname_np(pthread_self(), "TimerDispatch") != 0) {
         ALOGW("Failed to set thread name on dispatch thread");
     }
 

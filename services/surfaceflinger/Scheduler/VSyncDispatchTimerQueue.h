@@ -16,14 +16,13 @@
 
 #pragma once
 
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 
 #include <android-base/thread_annotations.h>
+#include <ftl/small_map.h>
 
 #include "VSyncDispatch.h"
 #include "VsyncSchedule.h"
@@ -70,7 +69,8 @@ public:
 
     // Adds a pending upload of the earliestVSync and workDuration that will be applied on the next
     // call to update()
-    void addPendingWorkloadUpdate(VSyncDispatch::ScheduleTiming);
+    ScheduleResult addPendingWorkloadUpdate(VSyncTracker&, nsecs_t now,
+                                            VSyncDispatch::ScheduleTiming);
 
     // Checks if there is a pending update to the workload, returning true if so.
     bool hasPendingWorkloadUpdate() const;
@@ -84,7 +84,15 @@ public:
     void dump(std::string& result) const;
 
 private:
+    struct ArmingInfo {
+        nsecs_t mActualWakeupTime;
+        nsecs_t mActualVsyncTime;
+        nsecs_t mActualReadyTime;
+    };
+
     nsecs_t adjustVsyncIfNeeded(VSyncTracker& tracker, nsecs_t nextVsyncTime) const;
+    ArmingInfo update(VSyncTracker&, nsecs_t now, VSyncDispatch::ScheduleTiming,
+                      std::optional<ArmingInfo>) const;
 
     const std::string mName;
     const VSyncDispatch::Callback mCallback;
@@ -92,11 +100,6 @@ private:
     VSyncDispatch::ScheduleTiming mScheduleTiming;
     const nsecs_t mMinVsyncDistance;
 
-    struct ArmingInfo {
-        nsecs_t mActualWakeupTime;
-        nsecs_t mActualVsyncTime;
-        nsecs_t mActualReadyTime;
-    };
     std::optional<ArmingInfo> mArmedInfo;
     std::optional<nsecs_t> mLastDispatchTime;
 
@@ -126,8 +129,8 @@ public:
 
     CallbackToken registerCallback(Callback, std::string callbackName) final;
     void unregisterCallback(CallbackToken) final;
-    ScheduleResult schedule(CallbackToken, ScheduleTiming) final;
-    ScheduleResult update(CallbackToken, ScheduleTiming) final;
+    std::optional<ScheduleResult> schedule(CallbackToken, ScheduleTiming) final;
+    std::optional<ScheduleResult> update(CallbackToken, ScheduleTiming) final;
     CancelResult cancel(CallbackToken) final;
     void dump(std::string&) const final;
 
@@ -135,18 +138,23 @@ private:
     VSyncDispatchTimerQueue(const VSyncDispatchTimerQueue&) = delete;
     VSyncDispatchTimerQueue& operator=(const VSyncDispatchTimerQueue&) = delete;
 
+    // The static capacity was chosen to exceed the expected number of callbacks.
     using CallbackMap =
-            std::unordered_map<CallbackToken, std::shared_ptr<VSyncDispatchTimerQueueEntry>>;
+            ftl::SmallMap<CallbackToken, std::shared_ptr<VSyncDispatchTimerQueueEntry>, 5>;
 
     void timerCallback();
     void setTimer(nsecs_t, nsecs_t) REQUIRES(mMutex);
     void rearmTimer(nsecs_t now) REQUIRES(mMutex);
-    void rearmTimerSkippingUpdateFor(nsecs_t now, CallbackMap::iterator const& skipUpdate)
+    void rearmTimerSkippingUpdateFor(nsecs_t now, CallbackMap::const_iterator skipUpdate)
             REQUIRES(mMutex);
     void cancelTimer() REQUIRES(mMutex);
-    ScheduleResult scheduleLocked(CallbackToken, ScheduleTiming) REQUIRES(mMutex);
+    std::optional<ScheduleResult> scheduleLocked(CallbackToken, ScheduleTiming) REQUIRES(mMutex);
 
     std::mutex mutable mMutex;
+
+    // During VSyncDispatchTimerQueue deconstruction, skip timerCallback to
+    // avoid crash
+    bool mRunning = true;
 
     static constexpr nsecs_t kInvalidTime = std::numeric_limits<int64_t>::max();
     std::unique_ptr<TimeKeeper> const mTimeKeeper;
@@ -154,7 +162,7 @@ private:
     nsecs_t const mTimerSlack;
     nsecs_t const mMinVsyncDistance;
 
-    size_t mCallbackToken GUARDED_BY(mMutex) = 0;
+    CallbackToken mCallbackToken GUARDED_BY(mMutex);
 
     CallbackMap mCallbacks GUARDED_BY(mMutex);
     nsecs_t mIntendedWakeupTime GUARDED_BY(mMutex) = kInvalidTime;

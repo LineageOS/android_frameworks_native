@@ -3370,7 +3370,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static const mat4 kDefaultColorTransformMat;
 
     static const Region kDebugRegion;
-    static const compositionengine::CompositionRefreshArgs kDefaultRefreshArgs;
     static const HdrCapabilities kHdrCapabilities;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
@@ -3393,7 +3392,6 @@ const Rect OutputComposeSurfacesTest::kDefaultOutputFrame{1001, 1002, 1003, 1004
 const Rect OutputComposeSurfacesTest::kDefaultOutputViewport{1005, 1006, 1007, 1008};
 const Rect OutputComposeSurfacesTest::kDefaultOutputDestinationClip{1013, 1014, 1015, 1016};
 const mat4 OutputComposeSurfacesTest::kDefaultColorTransformMat{mat4() * 0.5f};
-const compositionengine::CompositionRefreshArgs OutputComposeSurfacesTest::kDefaultRefreshArgs;
 const Region OutputComposeSurfacesTest::kDebugRegion{Rect{100, 101, 102, 103}};
 
 const HdrCapabilities OutputComposeSurfacesTest::
@@ -4020,7 +4018,6 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
        usesExpectedDisplaySettingsWithFp16Buffer) {
     SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
-    ALOGE("alecmouri: %d", flags::fp16_client_target());
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
@@ -4054,6 +4051,7 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
         Layer() {
             EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
             EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*mLayerFE));
+            EXPECT_CALL(mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
         }
 
         StrictMock<mock::OutputLayer> mOutputLayer;
@@ -4094,7 +4092,12 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
 };
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLayers) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = false;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -4108,7 +4111,12 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLa
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
 
@@ -4130,7 +4138,12 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEverywhere) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -4143,7 +4156,12 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEveryw
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderSurface) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -4222,6 +4240,7 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
 
     GenerateClientCompositionRequestsTest() {
         mOutput.mState.needsFiltering = false;
+        mOutput.mState.isProtected = true;
 
         mOutput.setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
@@ -4246,6 +4265,7 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
         mOutput.mState.displaySpace.setOrientation(kDisplayOrientation);
         mOutput.mState.needsFiltering = false;
         mOutput.mState.isSecure = false;
+        mOutput.mState.isProtected = true;
 
         for (size_t i = 0; i < mLayers.size(); i++) {
             mLayers[i].mOutputLayerState.clearClientTarget = false;
@@ -4708,7 +4728,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4721,7 +4741,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4734,7 +4754,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4912,7 +4932,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             Region(Rect(0, 0, 1000, 1000)),
             false, /* needs filtering */
             true,  /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kPortraitViewport,
             kOutputDataspace,
             true /* realContentIsVisible */,
@@ -4931,7 +4951,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             Region(Rect(1000, 0, 2000, 1000)),
             false, /* needs filtering */
             true,  /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kPortraitViewport,
             kOutputDataspace,
             true /* realContentIsVisible */,
@@ -5079,6 +5099,80 @@ TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, calledForOneFrame) {
     mOutput->offloadPresentNextFrame();
     mOutput->present(mRefreshArgs);
     mOutput->present(mRefreshArgs);
+}
+
+/*
+ * Output::updateProtectedContentState()
+ */
+
+struct OutputUpdateProtectedContentStateTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+    };
+
+    OutputUpdateProtectedContentStateTest() {
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+        EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
+        EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0))
+                .WillRepeatedly(Return(&mLayer1.mOutputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1))
+                .WillRepeatedly(Return(&mLayer2.mOutputLayer));
+    }
+
+    struct Layer {
+        Layer() {
+            EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
+            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*mLayerFE));
+        }
+
+        StrictMock<mock::OutputLayer> mOutputLayer;
+        sp<StrictMock<mock::LayerFE>> mLayerFE = sp<StrictMock<mock::LayerFE>>::make();
+        LayerFECompositionState mLayerFEState;
+    };
+
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<OutputPartialMock> mOutput;
+    StrictMock<mock::CompositionEngine> mCompositionEngine;
+    StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
+    Layer mLayer1;
+    Layer mLayer2;
+};
+
+TEST_F(OutputUpdateProtectedContentStateTest, ifProtectedContentLayerComposeByHWC) {
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
+    mLayer1.mLayerFEState.hasProtectedContent = false;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(mLayer1.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mLayer2.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
+    mOutput.updateProtectedContentState();
+}
+
+TEST_F(OutputUpdateProtectedContentStateTest, ifProtectedContentLayerComposeByClient) {
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
+    mLayer1.mLayerFEState.hasProtectedContent = false;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(*mRenderSurface, setProtected(true));
+    EXPECT_CALL(mLayer1.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mLayer2.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    mOutput.updateProtectedContentState();
 }
 
 } // namespace

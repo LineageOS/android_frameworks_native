@@ -118,6 +118,10 @@ impl Filter for BounceKeysFilter {
         }
         self.next.notify_devices_changed(device_infos);
     }
+
+    fn destroy(&mut self) {
+        self.next.destroy();
+    }
 }
 
 #[cfg(test)]

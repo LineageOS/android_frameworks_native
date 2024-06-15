@@ -35,6 +35,8 @@
 #include <vintf/constants.h>
 #endif  // !VENDORSERVICEMANAGER
 
+#include "NameUtil.h"
+
 using ::android::binder::Status;
 using ::android::internal::Stability;
 
@@ -84,6 +86,10 @@ static bool forEachManifest(const std::function<bool(const ManifestWithDescripti
     return false;
 }
 
+static std::string getNativeInstanceName(const vintf::ManifestInstance& instance) {
+    return instance.package() + "/" + instance.instance();
+}
+
 struct AidlName {
     std::string package;
     std::string iface;
@@ -105,7 +111,26 @@ struct AidlName {
     }
 };
 
+static std::string getAidlInstanceName(const vintf::ManifestInstance& instance) {
+    return instance.package() + "." + instance.interface() + "/" + instance.instance();
+}
+
 static bool isVintfDeclared(const std::string& name) {
+    NativeName nname;
+    if (NativeName::fill(name, &nname)) {
+        bool found = forEachManifest([&](const ManifestWithDescription& mwd) {
+            if (mwd.manifest->hasNativeInstance(nname.package, nname.instance)) {
+                ALOGI("Found %s in %s VINTF manifest.", name.c_str(), mwd.description);
+                return true; // break
+            }
+            return false; // continue
+        });
+        if (!found) {
+            ALOGI("Could not find %s in the VINTF manifest.", name.c_str());
+        }
+        return found;
+    }
+
     AidlName aname;
     if (!AidlName::fill(name, &aname)) return false;
 
@@ -144,13 +169,31 @@ static bool isVintfDeclared(const std::string& name) {
 }
 
 static std::optional<std::string> getVintfUpdatableApex(const std::string& name) {
+    NativeName nname;
+    if (NativeName::fill(name, &nname)) {
+        std::optional<std::string> updatableViaApex;
+
+        forEachManifest([&](const ManifestWithDescription& mwd) {
+            bool cont = mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
+                if (manifestInstance.format() != vintf::HalFormat::NATIVE) return true;
+                if (manifestInstance.package() != nname.package) return true;
+                if (manifestInstance.instance() != nname.instance) return true;
+                updatableViaApex = manifestInstance.updatableViaApex();
+                return false; // break (libvintf uses opposite convention)
+            });
+            return !cont;
+        });
+
+        return updatableViaApex;
+    }
+
     AidlName aname;
     if (!AidlName::fill(name, &aname)) return std::nullopt;
 
     std::optional<std::string> updatableViaApex;
 
     forEachManifest([&](const ManifestWithDescription& mwd) {
-        mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
+        bool cont = mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
             if (manifestInstance.format() != vintf::HalFormat::AIDL) return true;
             if (manifestInstance.package() != aname.package) return true;
             if (manifestInstance.interface() != aname.iface) return true;
@@ -158,31 +201,31 @@ static std::optional<std::string> getVintfUpdatableApex(const std::string& name)
             updatableViaApex = manifestInstance.updatableViaApex();
             return false; // break (libvintf uses opposite convention)
         });
-        if (updatableViaApex.has_value()) return true; // break (found match)
-        return false; // continue
+        return !cont;
     });
 
     return updatableViaApex;
 }
 
-static std::vector<std::string> getVintfUpdatableInstances(const std::string& apexName) {
-    std::vector<std::string> instances;
+static std::vector<std::string> getVintfUpdatableNames(const std::string& apexName) {
+    std::vector<std::string> names;
 
     forEachManifest([&](const ManifestWithDescription& mwd) {
         mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
-            if (manifestInstance.format() == vintf::HalFormat::AIDL &&
-                manifestInstance.updatableViaApex().has_value() &&
+            if (manifestInstance.updatableViaApex().has_value() &&
                 manifestInstance.updatableViaApex().value() == apexName) {
-                std::string aname = manifestInstance.package() + "." +
-                        manifestInstance.interface() + "/" + manifestInstance.instance();
-                instances.push_back(aname);
+                if (manifestInstance.format() == vintf::HalFormat::NATIVE) {
+                    names.push_back(getNativeInstanceName(manifestInstance));
+                } else if (manifestInstance.format() == vintf::HalFormat::AIDL) {
+                    names.push_back(getAidlInstanceName(manifestInstance));
+                }
             }
             return true; // continue (libvintf uses opposite convention)
         });
         return false; // continue
     });
 
-    return instances;
+    return names;
 }
 
 static std::optional<ConnectionInfo> getVintfConnectionInfo(const std::string& name) {
@@ -217,6 +260,18 @@ static std::optional<ConnectionInfo> getVintfConnectionInfo(const std::string& n
 static std::vector<std::string> getVintfInstances(const std::string& interface) {
     size_t lastDot = interface.rfind('.');
     if (lastDot == std::string::npos) {
+        // This might be a package for native instance.
+        std::vector<std::string> ret;
+        (void)forEachManifest([&](const ManifestWithDescription& mwd) {
+            auto instances = mwd.manifest->getNativeInstances(interface);
+            ret.insert(ret.end(), instances.begin(), instances.end());
+            return false; // continue
+        });
+        // If found, return it without error log.
+        if (!ret.empty()) {
+            return ret;
+        }
+
         ALOGE("VINTF interfaces require names in Java package format (e.g. some.package.foo.IFoo) "
               "but got: %s",
               interface.c_str());
@@ -596,20 +651,20 @@ Status ServiceManager::getUpdatableNames([[maybe_unused]] const std::string& ape
                                          std::vector<std::string>* outReturn) {
     auto ctx = mAccess->getCallingContext();
 
-    std::vector<std::string> apexUpdatableInstances;
+    std::vector<std::string> apexUpdatableNames;
 #ifndef VENDORSERVICEMANAGER
-    apexUpdatableInstances = getVintfUpdatableInstances(apexName);
+    apexUpdatableNames = getVintfUpdatableNames(apexName);
 #endif
 
     outReturn->clear();
 
-    for (const std::string& instance : apexUpdatableInstances) {
-        if (mAccess->canFind(ctx, instance)) {
-            outReturn->push_back(instance);
+    for (const std::string& name : apexUpdatableNames) {
+        if (mAccess->canFind(ctx, name)) {
+            outReturn->push_back(name);
         }
     }
 
-    if (outReturn->size() == 0 && apexUpdatableInstances.size() != 0) {
+    if (outReturn->size() == 0 && apexUpdatableNames.size() != 0) {
         return Status::fromExceptionCode(Status::EX_SECURITY, "SELinux denied.");
     }
 

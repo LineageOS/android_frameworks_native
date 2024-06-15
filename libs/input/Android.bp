@@ -39,6 +39,7 @@ filegroup {
 aconfig_declarations {
     name: "com.android.input.flags-aconfig",
     package: "com.android.input.flags",
+    container: "system",
     srcs: ["input_flags.aconfig"],
 }
 
@@ -175,6 +176,8 @@ cc_library {
     ],
     srcs: [
         "android/os/IInputFlinger.aidl",
+        "android/os/InputChannelCore.aidl",
+        "AccelerationCurve.cpp",
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",
@@ -220,7 +223,7 @@ cc_library {
         "libPlatformProperties",
         "libtinyxml2",
         "libutils",
-        "libvintf",
+        "libz", // needed by libkernelconfigs
         "server_configurable_flags",
     ],
 
@@ -239,6 +242,7 @@ cc_library {
         "libgui_window_info_static",
         "libui-types",
         "libtflite_static",
+        "libkernelconfigs",
     ],
 
     whole_static_libs: [

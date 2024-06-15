@@ -21,6 +21,9 @@
 
 mod bounce_keys_filter;
 mod input_filter;
+mod input_filter_thread;
+mod slow_keys_filter;
+mod sticky_keys_filter;
 
 use crate::input_filter::InputFilter;
 use binder::{
@@ -62,12 +65,14 @@ mod ffi {
 ///
 /// # Safety
 ///
-/// This function is safe iff `callback` is a valid pointer to an `AIBinder` interface of type
-/// `IInputFlingerRustBootstrapCallback`. The pointer must have had its reference count manually
-/// incremented using `AIBinder_incStrong`. See `binder::unstable_api::new_spibinder`.
+/// The provided `callback` must be a valid pointer to an `AIBinder` interface of type
+/// `IInputFlingerRustBootstrapCallback`, and the caller must give this function ownership of one
+/// strong refcount to the interface. See `binder::unstable_api::new_spibinder`.
 unsafe fn create_inputflinger_rust(callback: *mut ffi::IInputFlingerRustBootstrapCallbackAIBinder) {
     logger::init(
-        logger::Config::default().with_tag_on_device(LOG_TAG).with_min_level(log::Level::Trace),
+        logger::Config::default()
+            .with_tag_on_device(LOG_TAG)
+            .with_max_level(log::LevelFilter::Trace),
     );
 
     let callback = callback as *mut AIBinder;

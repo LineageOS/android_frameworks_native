@@ -37,6 +37,8 @@
 #include <sensor/Sensor.h>
 #include <sensor/SensorEventQueue.h>
 
+#include <com_android_hardware_libsensor_flags.h>
+
 // ----------------------------------------------------------------------------
 namespace android {
 // ----------------------------------------------------------------------------
@@ -88,48 +90,50 @@ SensorManager& SensorManager::getInstanceForPackage(const String16& packageName)
     SensorManager* sensorManager;
     auto iterator = sPackageInstances.find(packageName);
 
+    const uid_t uid = IPCThreadState::self()->getCallingUid();
+    const int deviceId = getDeviceIdForUid(uid);
+
+    // Return the cached instance if the device association of the package has not changed.
     if (iterator != sPackageInstances.end()) {
         sensorManager = iterator->second;
-    } else {
-        String16 opPackageName = packageName;
-        const uid_t uid = IPCThreadState::self()->getCallingUid();
-
-        // It is possible that the calling code has no access to the package name.
-        // In this case we will get the packages for the calling UID and pick the
-        // first one for attributing the app op. This will work correctly for
-        // runtime permissions as for legacy apps we will toggle the app op for
-        // all packages in the UID. The caveat is that the operation may be attributed
-        // to the wrong package and stats based on app ops may be slightly off.
-        if (opPackageName.size() <= 0) {
-            sp<IBinder> binder = defaultServiceManager()->getService(String16("permission"));
-            if (binder != nullptr) {
-                Vector<String16> packages;
-                interface_cast<IPermissionController>(binder)->getPackagesForUid(uid, packages);
-                if (!packages.isEmpty()) {
-                    opPackageName = packages[0];
-                } else {
-                    ALOGE("No packages for calling UID");
-                }
-            } else {
-                ALOGE("Cannot get permission service");
-            }
+        if (sensorManager->mDeviceId == deviceId) {
+            return *sensorManager;
         }
-
-        // Check if the calling UID is observed on a virtual device. If so, provide that device's
-        // sensors by default instead of the default device's sensors.
-        const int deviceId = getDeviceIdForUid(uid);
-        sensorManager = new SensorManager(opPackageName, deviceId);
-
-        // If we had no package name, we looked it up from the UID and the sensor
-        // manager instance we created should also be mapped to the empty package
-        // name, to avoid looking up the packages for a UID and get the same result.
-        if (packageName.size() <= 0) {
-            sPackageInstances.insert(std::make_pair(String16(), sensorManager));
-        }
-
-        // Stash the per package sensor manager.
-        sPackageInstances.insert(std::make_pair(opPackageName, sensorManager));
     }
+
+    // It is possible that the calling code has no access to the package name.
+    // In this case we will get the packages for the calling UID and pick the
+    // first one for attributing the app op. This will work correctly for
+    // runtime permissions as for legacy apps we will toggle the app op for
+    // all packages in the UID. The caveat is that the operation may be attributed
+    // to the wrong package and stats based on app ops may be slightly off.
+    String16 opPackageName = packageName;
+    if (opPackageName.size() <= 0) {
+        sp<IBinder> binder = defaultServiceManager()->getService(String16("permission"));
+        if (binder != nullptr) {
+            Vector<String16> packages;
+            interface_cast<IPermissionController>(binder)->getPackagesForUid(uid, packages);
+            if (!packages.isEmpty()) {
+                opPackageName = packages[0];
+            } else {
+                ALOGE("No packages for calling UID");
+            }
+        } else {
+            ALOGE("Cannot get permission service");
+        }
+    }
+
+    sensorManager = new SensorManager(opPackageName, deviceId);
+
+    // If we had no package name, we looked it up from the UID and the sensor
+    // manager instance we created should also be mapped to the empty package
+    // name, to avoid looking up the packages for a UID and get the same result.
+    if (packageName.size() <= 0) {
+        sPackageInstances.insert(std::make_pair(String16(), sensorManager));
+    }
+
+    // Stash the per package sensor manager.
+    sPackageInstances.insert(std::make_pair(opPackageName, sensorManager));
 
     return *sensorManager;
 }
@@ -190,6 +194,9 @@ void SensorManager::sensorManagerDied() {
 }
 
 status_t SensorManager::assertStateLocked() {
+#if COM_ANDROID_HARDWARE_LIBSENSOR_FLAGS(SENSORMANAGER_PING_BINDER)
+    if (mSensorServer == nullptr) {
+#else
     bool initSensorManager = false;
     if (mSensorServer == nullptr) {
         initSensorManager = true;
@@ -201,6 +208,7 @@ status_t SensorManager::assertStateLocked() {
         }
     }
     if (initSensorManager) {
+#endif
         waitForSensorService(&mSensorServer);
         LOG_ALWAYS_FATAL_IF(mSensorServer == nullptr, "getService(SensorService) NULL");
 
@@ -246,6 +254,22 @@ ssize_t SensorManager::getSensorList(Sensor const* const** list) {
     }
     *list = mSensorList;
     return static_cast<ssize_t>(mSensors.size());
+}
+
+ssize_t SensorManager::getDefaultDeviceSensorList(Vector<Sensor> & list) {
+    Mutex::Autolock _l(mLock);
+    status_t err = assertStateLocked();
+    if (err < 0) {
+        return static_cast<ssize_t>(err);
+    }
+
+    if (mDeviceId == DEVICE_ID_DEFAULT) {
+        list = mSensors;
+    } else {
+        list = mSensorServer->getSensorList(mOpPackageName);
+    }
+
+    return static_cast<ssize_t>(list.size());
 }
 
 ssize_t SensorManager::getDynamicSensorList(Vector<Sensor> & dynamicSensors) {

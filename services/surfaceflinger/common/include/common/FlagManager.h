@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -47,8 +48,6 @@ public:
     bool use_skia_tracing() const;
 
     /// Trunk stable server flags ///
-    bool late_boot_misc2() const;
-    bool dont_skip_on_early() const;
     bool refresh_rate_overlay_on_external_display() const;
 
     /// Trunk stable readonly flags ///
@@ -61,12 +60,18 @@ public:
     bool multithreaded_present() const;
     bool add_sf_skipped_frames_to_trace() const;
     bool use_known_refresh_rate_for_fps_consistency() const;
-    bool cache_if_source_crop_layer_only_moved() const;
+    bool cache_when_source_crop_layer_only_moved() const;
     bool enable_fro_dependent_features() const;
     bool display_protected() const;
     bool fp16_client_target() const;
     bool game_default_frame_rate() const;
     bool enable_layer_command_batching() const;
+    bool screenshot_fence_preservation() const;
+    bool vulkan_renderengine() const;
+    bool renderable_buffer_usage() const;
+    bool restore_blur_step() const;
+    bool dont_skip_on_early_ro() const;
+    bool protected_if_client() const;
 
 protected:
     // overridden for unit tests

@@ -116,7 +116,7 @@ Choreographer::~Choreographer() {
     std::lock_guard<std::mutex> _l(gChoreographers.lock);
     gChoreographers.ptrs.erase(std::remove_if(gChoreographers.ptrs.begin(),
                                               gChoreographers.ptrs.end(),
-                                              [=](Choreographer* c) { return c == this; }),
+                                              [=, this](Choreographer* c) { return c == this; }),
                                gChoreographers.ptrs.end());
     // Only poke DisplayManagerGlobal to unregister if we previously registered
     // callbacks.
@@ -342,6 +342,13 @@ void Choreographer::dispatchFrameRateOverrides(nsecs_t, PhysicalDisplayId,
 void Choreographer::dispatchNullEvent(nsecs_t, PhysicalDisplayId) {
     ALOGV("choreographer %p ~ received null event.", this);
     handleRefreshRateUpdates();
+}
+
+void Choreographer::dispatchHdcpLevelsChanged(PhysicalDisplayId displayId, int32_t connectedLevel,
+                                              int32_t maxLevel) {
+    ALOGV("choreographer %p ~ received hdcp levels change event (displayId=%s, connectedLevel=%d, "
+          "maxLevel=%d), ignoring.",
+          this, to_string(displayId).c_str(), connectedLevel, maxLevel);
 }
 
 void Choreographer::handleMessage(const Message& message) {

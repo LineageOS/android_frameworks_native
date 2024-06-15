@@ -51,7 +51,7 @@ public:
         std::cout << "Setting expected stride to " << stride << std::endl;
         EXPECT_CALL(*(reinterpret_cast<const mock::MockGrallocAllocator*>(mAllocator.get())),
                     allocate)
-                .WillOnce(DoAll(SetArgPointee<7>(stride), Return(err)));
+                .WillOnce(DoAll(SetArgPointee<6>(stride), Return(err)));
     }
     std::unique_ptr<const GrallocAllocator>& getAllocator() { return mAllocator; }
 };

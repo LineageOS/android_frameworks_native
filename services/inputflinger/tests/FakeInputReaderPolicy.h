@@ -102,8 +102,10 @@ private:
     bool mInputDevicesChanged GUARDED_BY(mLock){false};
     std::vector<DisplayViewport> mViewports;
     TouchAffineTransformation transform;
-    std::optional<int32_t /*deviceId*/> mStylusGestureNotified GUARDED_BY(mLock){};
     bool mIsInputMethodConnectionActive{false};
+
+    std::condition_variable mStylusGestureNotifiedCondition;
+    std::optional<DeviceId> mDeviceIdOfNotifiedStylusGesture GUARDED_BY(mLock){};
 
     uint32_t mNextPointerCaptureSequenceNumber{0};
 };

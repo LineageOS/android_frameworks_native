@@ -31,10 +31,6 @@
 #include <utils/Mutex.h>
 #include <utils/Trace.h>
 
-#include <aidl/android/hardware/power/IPower.h>
-#include <aidl/android/hardware/power/IPowerHintSession.h>
-#include <aidl/android/hardware/power/WorkDuration.h>
-
 #include <binder/IServiceManager.h>
 
 #include "../SurfaceFlingerProperties.h"

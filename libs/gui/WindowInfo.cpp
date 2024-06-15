@@ -109,7 +109,8 @@ bool WindowInfo::operator==(const WindowInfo& info) const {
             info.inputConfig == inputConfig && info.displayId == displayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
             info.applicationInfo == applicationInfo && info.layoutParamsType == layoutParamsType &&
-            info.layoutParamsFlags == layoutParamsFlags;
+            info.layoutParamsFlags == layoutParamsFlags &&
+            info.canOccludePresentation == canOccludePresentation;
 }
 
 status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
@@ -158,8 +159,9 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->write(touchableRegion) ?:
         parcel->writeBool(replaceTouchableRegionWithCrop) ?:
         parcel->writeStrongBinder(touchableRegionCropHandle.promote()) ?:
-        parcel->writeStrongBinder(windowToken);
-        parcel->writeStrongBinder(focusTransferTarget);
+        parcel->writeStrongBinder(windowToken) ?:
+        parcel->writeStrongBinder(focusTransferTarget) ?:
+        parcel->writeBool(canOccludePresentation);
     // clang-format on
     return status;
 }
@@ -210,7 +212,8 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readBool(&replaceTouchableRegionWithCrop) ?:
         parcel->readNullableStrongBinder(&touchableRegionCropHandleSp) ?:
         parcel->readNullableStrongBinder(&windowToken) ?:
-        parcel->readNullableStrongBinder(&focusTransferTarget);
+        parcel->readNullableStrongBinder(&focusTransferTarget) ?:
+        parcel->readBool(&canOccludePresentation);
 
     // clang-format on
 
@@ -258,10 +261,7 @@ void WindowInfoHandle::updateFrom(sp<WindowInfoHandle> handle) {
     mInfo = handle->mInfo;
 }
 
-std::ostream& operator<<(std::ostream& out, const WindowInfoHandle& window) {
-    const WindowInfo& info = *window.getInfo();
-    std::string transform;
-    info.transform.dump(transform, "transform", "    ");
+std::ostream& operator<<(std::ostream& out, const WindowInfo& info) {
     out << "name=" << info.name << ", id=" << info.id << ", displayId=" << info.displayId
         << ", inputConfig=" << info.inputConfig.string() << ", alpha=" << info.alpha << ", frame=["
         << info.frame.left << "," << info.frame.top << "][" << info.frame.right << ","
@@ -272,8 +272,17 @@ std::ostream& operator<<(std::ostream& out, const WindowInfoHandle& window) {
         << ", ownerUid=" << info.ownerUid.toString() << ", dispatchingTimeout="
         << std::chrono::duration_cast<std::chrono::milliseconds>(info.dispatchingTimeout).count()
         << "ms, token=" << info.token.get()
-        << ", touchOcclusionMode=" << ftl::enum_string(info.touchOcclusionMode) << "\n"
-        << transform;
+        << ", touchOcclusionMode=" << ftl::enum_string(info.touchOcclusionMode);
+    if (info.canOccludePresentation) out << ", canOccludePresentation";
+    std::string transform;
+    info.transform.dump(transform, "transform", "    ");
+    out << "\n" << transform;
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const WindowInfoHandle& window) {
+    const WindowInfo& info = *window.getInfo();
+    out << info;
     return out;
 }
 

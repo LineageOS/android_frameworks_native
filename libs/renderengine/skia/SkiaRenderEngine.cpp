@@ -53,6 +53,7 @@
 #include <SkSurface.h>
 #include <SkTileMode.h>
 #include <android-base/stringprintf.h>
+#include <common/FlagManager.h>
 #include <gui/FenceMonitor.h>
 #include <gui/TraceUtils.h>
 #include <include/gpu/ganesh/SkSurfaceGanesh.h>
@@ -269,9 +270,9 @@ void SkiaRenderEngine::setEnableTracing(bool tracingEnabled) {
     SkAndroidFrameworkTraceUtil::setEnableTracing(tracingEnabled);
 }
 
-SkiaRenderEngine::SkiaRenderEngine(RenderEngineType type, PixelFormat pixelFormat,
+SkiaRenderEngine::SkiaRenderEngine(Threaded threaded, PixelFormat pixelFormat,
                                    bool supportsBackgroundBlur)
-      : RenderEngine(type), mDefaultPixelFormat(pixelFormat) {
+      : RenderEngine(threaded), mDefaultPixelFormat(pixelFormat) {
     if (supportsBackgroundBlur) {
         ALOGD("Background Blurs Enabled");
         mBlurFilter = new KawaseBlurFilter();
@@ -389,10 +390,9 @@ void SkiaRenderEngine::ensureGrContextsCreated() {
 void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
                                                   bool isRenderable) {
     // Only run this if RE is running on its own thread. This
-    // way the access to GL operations is guaranteed to be happening on the
+    // way the access to GL/VK operations is guaranteed to be happening on the
     // same thread.
-    if (mRenderEngineType != RenderEngineType::SKIA_GL_THREADED &&
-        mRenderEngineType != RenderEngineType::SKIA_VK_THREADED) {
+    if (!isThreaded()) {
         return;
     }
     // We don't attempt to map a buffer if the buffer contains protected content. In GL this is
@@ -420,6 +420,9 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
     mGraphicBufferExternalRefs[buffer->getId()]++;
 
     if (const auto& iter = cache.find(buffer->getId()); iter == cache.end()) {
+        if (FlagManager::getInstance().renderable_buffer_usage()) {
+            isRenderable = buffer->getUsage() & GRALLOC_USAGE_HW_RENDER;
+        }
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
                 std::make_shared<AutoBackendTexture::LocalRef>(grContext,
                                                                buffer->toAHardwareBuffer(),
@@ -761,10 +764,11 @@ void SkiaRenderEngine::drawLayersInternal(
             // save a snapshot of the activeSurface to use as input to the blur shaders
             blurInput = activeSurface->makeImageSnapshot();
 
-            // blit the offscreen framebuffer into the destination AHB, but only
-            // if there are blur regions. backgroundBlurRadius blurs the entire
-            // image below, so it can skip this step.
-            if (layer.blurRegions.size()) {
+            // blit the offscreen framebuffer into the destination AHB. This ensures that
+            // even if the blurred image does not cover the screen (for example, during
+            // a rotation animation, or if blur regions are used), the entire screen is
+            // initialized.
+            if (layer.blurRegions.size() || FlagManager::getInstance().restore_blur_step()) {
                 SkPaint paint;
                 paint.setBlendMode(SkBlendMode::kSrc);
                 if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
@@ -1017,7 +1021,7 @@ void SkiaRenderEngine::drawLayersInternal(
                                                   .fakeOutputDataspace = fakeDataspace}));
 
             // Turn on dithering when dimming beyond this (arbitrary) threshold...
-            static constexpr float kDimmingThreshold = 0.2f;
+            static constexpr float kDimmingThreshold = 0.9f;
             // ...or we're rendering an HDR layer down to an 8-bit target
             // Most HDR standards require at least 10-bits of color depth for source content, so we
             // can just extract the transfer function rather than dig into precise gralloc layout.

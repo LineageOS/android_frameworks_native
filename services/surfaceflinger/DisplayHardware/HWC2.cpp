@@ -27,6 +27,7 @@
 #include "HWC2.h"
 
 #include <android/configuration.h>
+#include <common/FlagManager.h>
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
@@ -165,8 +166,7 @@ Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Compo
     auto intError = mComposer.getChangedCompositionTypes(
             mId, &layerIds, &types);
     uint32_t numElements = layerIds.size();
-    auto error = static_cast<Error>(intError);
-    error = static_cast<Error>(intError);
+    const auto error = static_cast<Error>(intError);
     if (error != Error::NONE) {
         return error;
     }
@@ -282,19 +282,28 @@ Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
     return Error::NONE;
 }
 
-Error Display::getConnectionType(ui::DisplayConnectionType* outType) const {
-    if (mType != DisplayType::PHYSICAL) return Error::BAD_DISPLAY;
+ftl::Expected<ui::DisplayConnectionType, hal::Error> Display::getConnectionType() const {
+    if (!mConnectionType) {
+        mConnectionType = [this]() -> decltype(mConnectionType) {
+            if (mType != DisplayType::PHYSICAL) {
+                return ftl::Unexpected(Error::BAD_DISPLAY);
+            }
 
-    using ConnectionType = Hwc2::IComposerClient::DisplayConnectionType;
-    ConnectionType connectionType;
-    const auto error = static_cast<Error>(mComposer.getDisplayConnectionType(mId, &connectionType));
-    if (error != Error::NONE) {
-        return error;
+            using ConnectionType = Hwc2::IComposerClient::DisplayConnectionType;
+            ConnectionType connectionType;
+
+            if (const auto error = static_cast<Error>(
+                        mComposer.getDisplayConnectionType(mId, &connectionType));
+                error != Error::NONE) {
+                return ftl::Unexpected(error);
+            }
+
+            return connectionType == ConnectionType::INTERNAL ? ui::DisplayConnectionType::Internal
+                                                              : ui::DisplayConnectionType::External;
+        }();
     }
 
-    *outType = connectionType == ConnectionType::INTERNAL ? ui::DisplayConnectionType::Internal
-                                                          : ui::DisplayConnectionType::External;
-    return Error::NONE;
+    return *mConnectionType;
 }
 
 bool Display::hasCapability(DisplayCapability capability) const {
@@ -417,7 +426,14 @@ Error Display::setActiveConfigWithConstraints(hal::HWConfigId configId,
                                               VsyncPeriodChangeTimeline* outTimeline) {
     ALOGV("[%" PRIu64 "] setActiveConfigWithConstraints", mId);
 
-    if (isVsyncPeriodSwitchSupported()) {
+    // FIXME (b/319505580): At least the first config set on an external display must be
+    // `setActiveConfig`, so skip over the block that calls `setActiveConfigWithConstraints`
+    // for simplicity.
+    const bool connected_display = FlagManager::getInstance().connected_display();
+
+    if (isVsyncPeriodSwitchSupported() &&
+        (!connected_display ||
+         getConnectionType().value_opt() != ui::DisplayConnectionType::External)) {
         Hwc2::IComposerClient::VsyncPeriodChangeConstraints hwc2Constraints;
         hwc2Constraints.desiredTimeNanos = constraints.desiredTimeNanos;
         hwc2Constraints.seamlessRequired = constraints.seamlessRequired;

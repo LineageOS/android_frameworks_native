@@ -82,6 +82,10 @@ void FrameTargeter::beginFrame(const BeginFrameArgs& args, const IVsyncSource& v
         }
     }
 
+    if (!mSupportsExpectedPresentTime) {
+        mEarliestPresentTime = computeEarliestPresentTime(minFramePeriod, args.hwcMinWorkDuration);
+    }
+
     ATRACE_FORMAT("%s %" PRId64 " vsyncIn %.2fms%s", __func__, ftl::to_underlying(args.vsyncId),
                   ticks<std::milli, float>(mExpectedPresentTime - TimePoint::now()),
                   mExpectedPresentTime == args.expectedVsyncTime ? "" : " (adjusted)");
@@ -119,6 +123,14 @@ void FrameTargeter::beginFrame(const BeginFrameArgs& args, const IVsyncSource& v
     if (mFrameMissed) mFrameMissedCount++;
     if (mHwcFrameMissed) mHwcFrameMissedCount++;
     if (mGpuFrameMissed) mGpuFrameMissedCount++;
+}
+
+std::optional<TimePoint> FrameTargeter::computeEarliestPresentTime(Period minFramePeriod,
+                                                                   Duration hwcMinWorkDuration) {
+    if (wouldPresentEarly(minFramePeriod)) {
+        return previousFrameVsyncTime(minFramePeriod) - hwcMinWorkDuration;
+    }
+    return {};
 }
 
 void FrameTargeter::endFrame(const CompositeResult& result) {

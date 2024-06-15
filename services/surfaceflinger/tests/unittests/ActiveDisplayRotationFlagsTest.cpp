@@ -17,7 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
-#include "DisplayTransactionTestHelpers.h"
+#include "DualDisplayTransactionTest.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -25,31 +25,10 @@
 namespace android {
 namespace {
 
-struct ActiveDisplayRotationFlagsTest : DisplayTransactionTest {
-    static constexpr bool kWithMockScheduler = false;
-    ActiveDisplayRotationFlagsTest() : DisplayTransactionTest(kWithMockScheduler) {}
-
+struct ActiveDisplayRotationFlagsTest
+      : DualDisplayTransactionTest<hal::PowerMode::ON, hal::PowerMode::OFF> {
     void SetUp() override {
-        injectMockScheduler(kInnerDisplayId);
-
-        // Inject inner and outer displays with uninitialized power modes.
-        constexpr bool kInitPowerMode = false;
-        {
-            InnerDisplayVariant::injectHwcDisplay<kInitPowerMode>(this);
-            auto injector = InnerDisplayVariant::makeFakeExistingDisplayInjector(this);
-            injector.setPowerMode(std::nullopt);
-            injector.setRefreshRateSelector(mFlinger.scheduler()->refreshRateSelector());
-            mInnerDisplay = injector.inject();
-        }
-        {
-            OuterDisplayVariant::injectHwcDisplay<kInitPowerMode>(this);
-            auto injector = OuterDisplayVariant::makeFakeExistingDisplayInjector(this);
-            injector.setPowerMode(std::nullopt);
-            mOuterDisplay = injector.inject();
-        }
-
-        mFlinger.setPowerModeInternal(mInnerDisplay, PowerMode::ON);
-        mFlinger.setPowerModeInternal(mOuterDisplay, PowerMode::ON);
+        DualDisplayTransactionTest::SetUp();
 
         // The flags are a static variable, so by modifying them in the test, we
         // are modifying the real ones used by SurfaceFlinger. Save the original
@@ -64,10 +43,6 @@ struct ActiveDisplayRotationFlagsTest : DisplayTransactionTest {
 
     void TearDown() override { mFlinger.mutableActiveDisplayRotationFlags() = mOldRotationFlags; }
 
-    static inline PhysicalDisplayId kInnerDisplayId = InnerDisplayVariant::DISPLAY_ID::get();
-    static inline PhysicalDisplayId kOuterDisplayId = OuterDisplayVariant::DISPLAY_ID::get();
-
-    sp<DisplayDevice> mInnerDisplay, mOuterDisplay;
     ui::Transform::RotationFlags mOldRotationFlags;
 };
 

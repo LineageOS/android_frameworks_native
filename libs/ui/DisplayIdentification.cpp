@@ -21,6 +21,7 @@
 #include <cctype>
 #include <numeric>
 #include <optional>
+#include <span>
 
 #include <log/log.h>
 
@@ -46,6 +47,7 @@ uint64_t shiftMix(uint64_t val) {
     return val ^ (val >> 47);
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 uint64_t hash64Len16(uint64_t u, uint64_t v) {
     constexpr uint64_t kMul = 0x9ddfea08eb382d69;
     uint64_t a = (u ^ v) * kMul;
@@ -56,6 +58,7 @@ uint64_t hash64Len16(uint64_t u, uint64_t v) {
     return b;
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 uint64_t hash64Len0To16(const char* s, uint64_t len) {
     constexpr uint64_t k2 = 0x9ae16a3b2f90404f;
     constexpr uint64_t k3 = 0xc949d7c7509e6557;
@@ -81,7 +84,7 @@ uint64_t hash64Len0To16(const char* s, uint64_t len) {
     return k2;
 }
 
-using byte_view = std::basic_string_view<uint8_t>;
+using byte_view = std::span<const uint8_t>;
 
 constexpr size_t kEdidBlockSize = 128;
 constexpr size_t kEdidHeaderLength = 5;
@@ -89,7 +92,8 @@ constexpr size_t kEdidHeaderLength = 5;
 constexpr uint16_t kVirtualEdidManufacturerId = 0xffffu;
 
 std::optional<uint8_t> getEdidDescriptorType(const byte_view& view) {
-    if (view.size() < kEdidHeaderLength || view[0] || view[1] || view[2] || view[4]) {
+    if (static_cast<size_t>(view.size()) < kEdidHeaderLength || view[0] || view[1] || view[2] ||
+        view[4]) {
         return {};
     }
 
@@ -164,7 +168,7 @@ Cea861ExtensionBlock parseCea861Block(const byte_view& block) {
         constexpr size_t kDataBlockHeaderSize = 1;
         const size_t dataBlockSize = bodyLength + kDataBlockHeaderSize;
 
-        if (block.size() < dataBlockOffset + dataBlockSize) {
+        if (static_cast<size_t>(block.size()) < dataBlockOffset + dataBlockSize) {
             ALOGW("Invalid EDID: CEA 861 data block is truncated.");
             break;
         }
@@ -264,7 +268,7 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
     }
 
     byte_view view(edid.data(), edid.size());
-    view.remove_prefix(kDescriptorOffset);
+    view = view.subspan(kDescriptorOffset);
 
     std::string_view displayName;
     std::string_view serialNumber;
@@ -274,13 +278,13 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
     constexpr size_t kDescriptorLength = 18;
 
     for (size_t i = 0; i < kDescriptorCount; i++) {
-        if (view.size() < kDescriptorLength) {
+        if (static_cast<size_t>(view.size()) < kDescriptorLength) {
             break;
         }
 
         if (const auto type = getEdidDescriptorType(view)) {
             byte_view descriptor(view.data(), kDescriptorLength);
-            descriptor.remove_prefix(kEdidHeaderLength);
+            descriptor = descriptor.subspan(kEdidHeaderLength);
 
             switch (*type) {
                 case 0xfc:
@@ -295,7 +299,7 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
             }
         }
 
-        view.remove_prefix(kDescriptorLength);
+        view = view.subspan(kDescriptorLength);
     }
 
     std::string_view modelString = displayName;
@@ -327,8 +331,8 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
         const size_t numExtensions = edid[kNumExtensionsOffset];
         view = byte_view(edid.data(), edid.size());
         for (size_t blockNumber = 1; blockNumber <= numExtensions; blockNumber++) {
-            view.remove_prefix(kEdidBlockSize);
-            if (view.size() < kEdidBlockSize) {
+            view = view.subspan(kEdidBlockSize);
+            if (static_cast<size_t>(view.size()) < kEdidBlockSize) {
                 ALOGW("Invalid EDID: block %zu is truncated.", blockNumber);
                 break;
             }

@@ -56,7 +56,7 @@ protected:
     LayerHistoryIntegrationTest() : LayerSnapshotTestBase() {
         mFlinger.resetScheduler(mScheduler);
         mLifecycleManager = {};
-        mHierarchyBuilder = {{}};
+        mHierarchyBuilder = {};
     }
 
     void updateLayerSnapshotsAndLayerHistory(nsecs_t now) {
@@ -165,12 +165,8 @@ protected:
                                                   DisplayModeId(0));
 
     mock::SchedulerCallback mSchedulerCallback;
-    mock::VsyncTrackerCallback mVsyncTrackerCallback;
-
-    TestableScheduler* mScheduler =
-            new TestableScheduler(mSelector, mSchedulerCallback, mVsyncTrackerCallback);
-
     TestableSurfaceFlinger mFlinger;
+    TestableScheduler* mScheduler = new TestableScheduler(mSelector, mFlinger, mSchedulerCallback);
 };
 
 namespace {
@@ -1030,6 +1026,7 @@ protected:
 };
 
 TEST_F(SmallAreaDetectionTest, SmallDirtyLayer) {
+    SET_FLAG_FOR_TEST(flags::enable_small_area_detection, true);
     auto layer = createLegacyAndFrontedEndLayer(1);
 
     nsecs_t time = systemTime();
@@ -1047,6 +1044,7 @@ TEST_F(SmallAreaDetectionTest, SmallDirtyLayer) {
 }
 
 TEST_F(SmallAreaDetectionTest, NotSmallDirtyLayer) {
+    SET_FLAG_FOR_TEST(flags::enable_small_area_detection, true);
     auto layer = createLegacyAndFrontedEndLayer(1);
 
     nsecs_t time = systemTime();
@@ -1064,6 +1062,7 @@ TEST_F(SmallAreaDetectionTest, NotSmallDirtyLayer) {
 }
 
 TEST_F(SmallAreaDetectionTest, smallDirtyLayerWithMatrix) {
+    SET_FLAG_FOR_TEST(flags::enable_small_area_detection, true);
     auto layer = createLegacyAndFrontedEndLayer(1);
 
     nsecs_t time = systemTime();

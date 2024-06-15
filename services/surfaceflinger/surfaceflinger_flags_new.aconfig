@@ -1,0 +1,13 @@
+# IMPORTANT - please keep alphabetize to reduce merge conflicts
+
+package: "com.android.graphics.surfaceflinger.flags"
+container: "system"
+
+flag {
+  name: "dont_skip_on_early_ro2"
+  namespace: "core_graphics"
+  description: "This flag is guarding the behaviour where SurfaceFlinger is trying to opportunistically present a frame when the configuration change from late to early"
+  bug: "273702768"
+} # dont_skip_on_early_ro2
+
+# IMPORTANT - please keep alphabetize to reduce merge conflicts

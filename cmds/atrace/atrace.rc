@@ -13,6 +13,8 @@ on late-init
 # Access control to these files is now entirely in selinux policy.
     chmod 0666 /sys/kernel/debug/tracing/trace_clock
     chmod 0666 /sys/kernel/tracing/trace_clock
+    chmod 0666 /sys/kernel/debug/tracing/buffer_percent
+    chmod 0666 /sys/kernel/tracing/buffer_percent
     chmod 0666 /sys/kernel/debug/tracing/buffer_size_kb
     chmod 0666 /sys/kernel/tracing/buffer_size_kb
     chmod 0666 /sys/kernel/debug/tracing/options/overwrite
@@ -317,7 +319,7 @@ on late-init && property:ro.boot.fastboot.boottrace=
 # Only create the tracing instance if persist.mm_events.enabled
 # Attempting to remove the tracing instance after it has been created
 # will likely fail with EBUSY as it would be in use by traced_probes.
-on post-fs-data && property:persist.mm_events.enabled=true
+on mm_events_property_available && property:persist.mm_events.enabled=true
 # Create MM Events Tracing Instance for Kmem Activity Trigger
     mkdir /sys/kernel/debug/tracing/instances/mm_events 0755 system system
     mkdir /sys/kernel/tracing/instances/mm_events 0755 system system
@@ -401,6 +403,9 @@ on post-fs-data && property:persist.mm_events.enabled=true
     chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu22/trace
     chmod 0666 /sys/kernel/debug/tracing/instances/mm_events/per_cpu/cpu23/trace
     chmod 0666 /sys/kernel/tracing/instances/mm_events/per_cpu/cpu23/trace
+
+on property:ro.persistent_properties.ready=true
+    trigger mm_events_property_available
 
 # Handle hyp tracing instance
 on late-init && property:ro.boot.hypervisor.vm.supported=1

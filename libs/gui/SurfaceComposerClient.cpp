@@ -56,6 +56,7 @@
 
 #include <android-base/thread_annotations.h>
 #include <gui/LayerStatePermissions.h>
+#include <gui/ScreenCaptureResults.h>
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
 
@@ -1807,6 +1808,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setExten
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDesiredHdrHeadroom(
+        const sp<SurfaceControl>& sc, float desiredRatio) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eDesiredHdrHeadroomChanged;
+    s->desiredHdrSdrRatio = desiredRatio;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCachingHint(
         const sp<SurfaceControl>& sc, gui::CachingHint cachingHint) {
     layer_state_t* s = getLayerState(sc);
@@ -3117,7 +3132,6 @@ status_t SurfaceComposerClient::removeWindowInfosListener(
             ->removeWindowInfosListener(windowInfosListener,
                                         ComposerServiceAIDL::getComposerService());
 }
-
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,
@@ -3139,11 +3153,19 @@ status_t ScreenshotClient::captureDisplay(DisplayId displayId, const gui::Captur
 }
 
 status_t ScreenshotClient::captureLayers(const LayerCaptureArgs& captureArgs,
-                                         const sp<IScreenCaptureListener>& captureListener) {
+                                         const sp<IScreenCaptureListener>& captureListener,
+                                         bool sync) {
     sp<gui::ISurfaceComposer> s(ComposerServiceAIDL::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    binder::Status status = s->captureLayers(captureArgs, captureListener);
+    binder::Status status;
+    if (sync) {
+        gui::ScreenCaptureResults captureResults;
+        status = s->captureLayersSync(captureArgs, &captureResults);
+        captureListener->onScreenCaptureCompleted(captureResults);
+    } else {
+        status = s->captureLayers(captureArgs, captureListener);
+    }
     return statusTFromBinderStatus(status);
 }
 

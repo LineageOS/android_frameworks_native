@@ -254,13 +254,14 @@ TEST_F(VibratorManagerHalWrapperAidlTest, TestGetVibratorRecoversVibratorPointer
     EXPECT_CALL(*mMockHal.get(), getVibrator(Eq(kVibratorId), _))
             .Times(Exactly(3))
             .WillOnce(DoAll(SetArgPointee<1>(nullptr),
-                            Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY))))
+                            Return(Status::fromExceptionCode(
+                                    Status::Exception::EX_TRANSACTION_FAILED))))
             .WillRepeatedly(DoAll(SetArgPointee<1>(mMockVibrator), Return(Status())));
 
     EXPECT_CALL(*mMockVibrator.get(), off())
             .Times(Exactly(3))
-            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
-            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_TRANSACTION_FAILED)))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_TRANSACTION_FAILED)))
             .WillRepeatedly(Return(Status()));
 
     // Get vibrator controller is successful even if first getVibrator.

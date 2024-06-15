@@ -199,7 +199,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeParcelable, trustedPresentationListener);
     SAFE_PARCEL(output.writeFloat, currentHdrSdrRatio);
     SAFE_PARCEL(output.writeFloat, desiredHdrSdrRatio);
-    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(cachingHint))
+    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(cachingHint));
     return NO_ERROR;
 }
 
@@ -484,6 +484,12 @@ void layer_state_t::sanitize(int32_t permissions) {
             flags &= ~eLayerIsDisplayDecoration;
             ALOGE("Stripped attempt to set LayerIsDisplayDecoration in sanitize");
         }
+        if ((mask & eCanOccludePresentation) &&
+            !(permissions & Permission::ACCESS_SURFACE_FLINGER)) {
+            flags &= ~eCanOccludePresentation;
+            mask &= ~eCanOccludePresentation;
+            ALOGE("Stripped attempt to set eCanOccludePresentation in sanitize");
+        }
     }
 
     if (what & layer_state_t::eInputInfoChanged) {
@@ -604,6 +610,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eExtendedRangeBrightnessChanged;
         desiredHdrSdrRatio = other.desiredHdrSdrRatio;
         currentHdrSdrRatio = other.currentHdrSdrRatio;
+    }
+    if (other.what & eDesiredHdrHeadroomChanged) {
+        what |= eDesiredHdrHeadroomChanged;
+        desiredHdrSdrRatio = other.desiredHdrSdrRatio;
     }
     if (other.what & eCachingHintChanged) {
         what |= eCachingHintChanged;
@@ -768,6 +778,7 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF(diff, eDataspaceChanged, other, dataspace);
     CHECK_DIFF2(diff, eExtendedRangeBrightnessChanged, other, currentHdrSdrRatio,
                 desiredHdrSdrRatio);
+    CHECK_DIFF(diff, eDesiredHdrHeadroomChanged, other, desiredHdrSdrRatio);
     CHECK_DIFF(diff, eCachingHintChanged, other, cachingHint);
     CHECK_DIFF(diff, eHdrMetadataChanged, other, hdrMetadata);
     if (other.what & eSurfaceDamageRegionChanged &&

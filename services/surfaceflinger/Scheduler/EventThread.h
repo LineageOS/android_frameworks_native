@@ -131,6 +131,9 @@ public:
             const sp<EventThreadConnection>& connection) const = 0;
 
     virtual void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) = 0;
+
+    virtual void onHdcpLevelsChanged(PhysicalDisplayId displayId, int32_t connectedLevel,
+                                     int32_t maxLevel) = 0;
 };
 
 struct IEventThreadCallback {
@@ -139,6 +142,7 @@ struct IEventThreadCallback {
     virtual bool throttleVsync(TimePoint, uid_t) = 0;
     virtual Period getVsyncPeriod(uid_t) = 0;
     virtual void resync() = 0;
+    virtual void onExpectedPresentTimePosted(TimePoint) = 0;
 };
 
 namespace impl {
@@ -176,6 +180,9 @@ public:
                      std::chrono::nanoseconds readyDuration) override;
 
     void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) override EXCLUDES(mMutex);
+
+    void onHdcpLevelsChanged(PhysicalDisplayId displayId, int32_t connectedLevel,
+                             int32_t maxLevel) override;
 
 private:
     friend EventThreadTest;

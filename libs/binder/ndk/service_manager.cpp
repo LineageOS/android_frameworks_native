@@ -200,6 +200,13 @@ void AServiceManager_getUpdatableApexName(const char* instance, void* context,
         callback(String8(updatableViaApex.value()).c_str(), context);
     }
 }
+void* AServiceManager_openDeclaredPassthroughHal(const char* interface, const char* instance,
+                                                 int flag) {
+    LOG_ALWAYS_FATAL_IF(interface == nullptr, "interface == nullptr");
+    LOG_ALWAYS_FATAL_IF(instance == nullptr, "instance == nullptr");
+
+    return openDeclaredPassthroughHal(String16(interface), String16(instance), flag);
+}
 void AServiceManager_forceLazyServicesPersist(bool persist) {
     auto serviceRegistrar = android::binder::LazyServiceRegistrar::getInstance();
     serviceRegistrar.forcePersist(persist);

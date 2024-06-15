@@ -594,6 +594,7 @@ public:
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
         Transaction& setExtendedRangeBrightness(const sp<SurfaceControl>& sc,
                                                 float currentBufferRatio, float desiredRatio);
+        Transaction& setDesiredHdrHeadroom(const sp<SurfaceControl>& sc, float desiredRatio);
         Transaction& setCachingHint(const sp<SurfaceControl>& sc, gui::CachingHint cachingHint);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
         Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
@@ -849,7 +850,8 @@ public:
     static status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
     static status_t captureDisplay(DisplayId, const gui::CaptureArgs&,
                                    const sp<IScreenCaptureListener>&);
-    static status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
+    static status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&,
+                                  bool sync);
 
     [[deprecated]] static status_t captureDisplay(DisplayId id,
                                                   const sp<IScreenCaptureListener>& listener) {

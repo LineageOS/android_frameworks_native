@@ -526,6 +526,9 @@ class Dumpstate {
     // List of open ANR dump files.
     std::vector<DumpData> anr_data_;
 
+    // List of open Java traces files in the anr directory.
+    std::vector<DumpData> anr_trace_data_;
+
     // List of open shutdown checkpoint files.
     std::vector<DumpData> shutdown_checkpoints_;
 
@@ -567,7 +570,8 @@ class Dumpstate {
     RunStatus dumpstate();
 
     void MaybeTakeEarlyScreenshot();
-    void MaybeSnapshotSystemTrace();
+    std::future<std::string> MaybeSnapshotSystemTraceAsync();
+    void MaybeWaitForSnapshotSystemTrace(std::future<std::string> task);
     void MaybeSnapshotUiTraces();
     void MaybeAddUiTracesToZip();
 

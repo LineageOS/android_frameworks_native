@@ -180,7 +180,8 @@ static constexpr size_t MAX_POINTERS = 16;
  * Declare a concrete type for the NDK's input event forward declaration.
  */
 struct AInputEvent {
-    virtual ~AInputEvent() { }
+    virtual ~AInputEvent() {}
+    bool operator==(const AInputEvent&) const = default;
 };
 
 /*
@@ -517,6 +518,8 @@ struct PointerProperties {
     void copyFrom(const PointerProperties& other);
 };
 
+std::ostream& operator<<(std::ostream& out, const PointerProperties& properties);
+
 // TODO(b/211379801) : Use a strong type from ftl/mixins.h instead
 using DeviceId = int32_t;
 
@@ -544,6 +547,8 @@ public:
     inline std::array<uint8_t, 32> getHmac() const { return mHmac; }
 
     static int32_t nextId();
+
+    bool operator==(const InputEvent&) const = default;
 
 protected:
     void initialize(int32_t id, DeviceId deviceId, uint32_t source, int32_t displayId,
@@ -597,6 +602,8 @@ public:
     void initialize(const KeyEvent& from);
 
     static const char* actionToString(int32_t action);
+
+    bool operator==(const KeyEvent&) const = default;
 
 protected:
     int32_t mAction;
@@ -916,6 +923,9 @@ public:
                                                     const PointerCoords&);
     // The rounding precision for transformed motion events.
     static constexpr float ROUNDING_PRECISION = 0.001f;
+
+    bool operator==(const MotionEvent&) const;
+    inline bool operator!=(const MotionEvent& o) const { return !(*this == o); };
 
 protected:
     int32_t mAction;

@@ -18,7 +18,7 @@
 // ETA for this blocker is 2023-10-27~2023-11-10.
 // Also, remember to remove fmtlib's format.cc from trusty makefiles.
 
-#if __has_include(<format>)
+#if __has_include(<format>) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 #include <format>
 #else
 #include <fmt/format.h>

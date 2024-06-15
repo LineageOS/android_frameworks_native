@@ -76,7 +76,7 @@ binder_status_t APersistableBundle_writeToParcel(const APersistableBundle* pBund
     return pBundle->mPBundle.writeToParcel(AParcel_viewPlatformParcel(parcel));
 }
 
-int32_t APersistableBundle_size(APersistableBundle* pBundle) {
+int32_t APersistableBundle_size(const APersistableBundle* pBundle) {
     size_t size = pBundle->mPBundle.size();
     LOG_ALWAYS_FATAL_IF(size > INT32_MAX,
                         "The APersistableBundle has gotten too large! There will be an overflow in "
@@ -167,40 +167,42 @@ int32_t APersistableBundle_getString(const APersistableBundle* pBundle, const ch
                                      void* context) {
     android::String16 outVal;
     bool ret = pBundle->mPBundle.getString(android::String16(key), &outVal);
-    if (ret) {
-        android::String8 tmp8(outVal);
-        *val = stringAllocator(tmp8.bytes() + 1, context);
-        if (*val) {
-            strncpy(*val, tmp8.c_str(), tmp8.bytes() + 1);
-            return tmp8.bytes();
-        } else {
-            return -1;
-        }
+    if (!ret) return APERSISTABLEBUNDLE_KEY_NOT_FOUND;
+    android::String8 tmp8(outVal);
+    *val = stringAllocator(tmp8.bytes() + 1, context);
+    if (*val) {
+        strncpy(*val, tmp8.c_str(), tmp8.bytes() + 1);
+        return tmp8.bytes();
+    } else {
+        return APERSISTABLEBUNDLE_ALLOCATOR_FAILED;
     }
-    return 0;
 }
 int32_t APersistableBundle_getBooleanVector(const APersistableBundle* pBundle, const char* key,
                                             bool* buffer, int32_t bufferSizeBytes) {
     std::vector<bool> newVec;
-    pBundle->mPBundle.getBooleanVector(android::String16(key), &newVec);
+    bool ret = pBundle->mPBundle.getBooleanVector(android::String16(key), &newVec);
+    if (!ret) return APERSISTABLEBUNDLE_KEY_NOT_FOUND;
     return getVecInternal<bool>(newVec, buffer, bufferSizeBytes);
 }
 int32_t APersistableBundle_getIntVector(const APersistableBundle* pBundle, const char* key,
                                         int32_t* buffer, int32_t bufferSizeBytes) {
     std::vector<int32_t> newVec;
-    pBundle->mPBundle.getIntVector(android::String16(key), &newVec);
+    bool ret = pBundle->mPBundle.getIntVector(android::String16(key), &newVec);
+    if (!ret) return APERSISTABLEBUNDLE_KEY_NOT_FOUND;
     return getVecInternal<int32_t>(newVec, buffer, bufferSizeBytes);
 }
 int32_t APersistableBundle_getLongVector(const APersistableBundle* pBundle, const char* key,
                                          int64_t* buffer, int32_t bufferSizeBytes) {
     std::vector<int64_t> newVec;
-    pBundle->mPBundle.getLongVector(android::String16(key), &newVec);
+    bool ret = pBundle->mPBundle.getLongVector(android::String16(key), &newVec);
+    if (!ret) return APERSISTABLEBUNDLE_KEY_NOT_FOUND;
     return getVecInternal<int64_t>(newVec, buffer, bufferSizeBytes);
 }
 int32_t APersistableBundle_getDoubleVector(const APersistableBundle* pBundle, const char* key,
                                            double* buffer, int32_t bufferSizeBytes) {
     std::vector<double> newVec;
-    pBundle->mPBundle.getDoubleVector(android::String16(key), &newVec);
+    bool ret = pBundle->mPBundle.getDoubleVector(android::String16(key), &newVec);
+    if (!ret) return APERSISTABLEBUNDLE_KEY_NOT_FOUND;
     return getVecInternal<double>(newVec, buffer, bufferSizeBytes);
 }
 int32_t APersistableBundle_getStringVector(const APersistableBundle* pBundle, const char* key,
@@ -208,7 +210,8 @@ int32_t APersistableBundle_getStringVector(const APersistableBundle* pBundle, co
                                            APersistableBundle_stringAllocator stringAllocator,
                                            void* context) {
     std::vector<android::String16> newVec;
-    pBundle->mPBundle.getStringVector(android::String16(key), &newVec);
+    bool ret = pBundle->mPBundle.getStringVector(android::String16(key), &newVec);
+    if (!ret) return APERSISTABLEBUNDLE_KEY_NOT_FOUND;
     return getStringsInternal<std::vector<android::String16>>(newVec, vec, bufferSizeBytes,
                                                               stringAllocator, context);
 }

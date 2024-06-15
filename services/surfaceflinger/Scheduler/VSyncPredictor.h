@@ -37,15 +37,15 @@ public:
      * \param [in] minimumSamplesForPrediction The minimum number of samples to collect before
      * predicting. \param [in] outlierTolerancePercent a number 0 to 100 that will be used to filter
      * samples that fall outlierTolerancePercent from an anticipated vsync event.
-     * \param [in] IVsyncTrackerCallback The callback for the VSyncTracker.
      */
     VSyncPredictor(ftl::NonNull<DisplayModePtr> modePtr, size_t historySize,
-                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent,
-                   IVsyncTrackerCallback&);
+                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent);
     ~VSyncPredictor();
 
     bool addVsyncTimestamp(nsecs_t timestamp) final EXCLUDES(mMutex);
-    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final EXCLUDES(mMutex);
+    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
+                                         std::optional<nsecs_t> lastVsyncOpt = {}) const final
+            EXCLUDES(mMutex);
     nsecs_t currentPeriod() const final EXCLUDES(mMutex);
     Period minFramePeriod() const final EXCLUDES(mMutex);
     void resetModel() final EXCLUDES(mMutex);
@@ -87,7 +87,8 @@ private:
     size_t next(size_t i) const REQUIRES(mMutex);
     bool validate(nsecs_t timestamp) const REQUIRES(mMutex);
     Model getVSyncPredictionModelLocked() const REQUIRES(mMutex);
-    nsecs_t nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const REQUIRES(mMutex);
+    nsecs_t snapToVsync(nsecs_t timePoint) const REQUIRES(mMutex);
+    nsecs_t snapToVsyncAlignedWithRenderRate(nsecs_t timePoint) const REQUIRES(mMutex);
     bool isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const REQUIRES(mMutex);
     Period minFramePeriodLocked() const REQUIRES(mMutex);
     void ensureMinFrameDurationIsKept(TimePoint, TimePoint) REQUIRES(mMutex);
@@ -103,7 +104,6 @@ private:
     size_t const kHistorySize;
     size_t const kMinimumSamplesForPrediction;
     size_t const kOutlierTolerancePercent;
-    IVsyncTrackerCallback& mVsyncTrackerCallback;
     std::mutex mutable mMutex;
 
     std::optional<nsecs_t> mKnownTimestamp GUARDED_BY(mMutex);
@@ -120,6 +120,8 @@ private:
     mutable std::optional<VsyncSequence> mLastVsyncSequence GUARDED_BY(mMutex);
 
     std::deque<TimePoint> mPastExpectedPresentTimes GUARDED_BY(mMutex);
+
+    TimePoint mLastMissedVsync GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler

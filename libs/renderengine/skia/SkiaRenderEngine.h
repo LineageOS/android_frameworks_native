@@ -59,7 +59,7 @@ class BlurFilter;
 class SkiaRenderEngine : public RenderEngine {
 public:
     static std::unique_ptr<SkiaRenderEngine> create(const RenderEngineCreationArgs& args);
-    SkiaRenderEngine(RenderEngineType type, PixelFormat pixelFormat, bool supportsBackgroundBlur);
+    SkiaRenderEngine(Threaded, PixelFormat pixelFormat, bool supportsBackgroundBlur);
     ~SkiaRenderEngine() override;
 
     std::future<void> primeCache(bool shouldPrimeUltraHDR) override final;

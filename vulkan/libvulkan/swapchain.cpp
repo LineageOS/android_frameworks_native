@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "vulkan/vulkan_core.h"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <aidl/android/hardware/graphics/common/Dataspace.h>
@@ -157,6 +158,25 @@ int InvertTransformToNative(VkSurfaceTransformFlagBitsKHR transform) {
             return 0;
     }
 }
+
+const static VkColorSpaceKHR colorSpaceSupportedByVkEXTSwapchainColorspace[] = {
+    VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT,
+    VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT,
+    VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT,
+    VK_COLOR_SPACE_BT709_LINEAR_EXT,
+    VK_COLOR_SPACE_BT709_NONLINEAR_EXT,
+    VK_COLOR_SPACE_BT2020_LINEAR_EXT,
+    VK_COLOR_SPACE_HDR10_ST2084_EXT,
+    VK_COLOR_SPACE_HDR10_HLG_EXT,
+    VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT,
+    VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT,
+    VK_COLOR_SPACE_PASS_THROUGH_EXT,
+    VK_COLOR_SPACE_DCI_P3_LINEAR_EXT};
+
+const static VkColorSpaceKHR
+    colorSpaceSupportedByVkEXTSwapchainColorspaceOnFP16SurfaceOnly[] = {
+        VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT,
+        VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT};
 
 class TimingInfo {
    public:
@@ -745,16 +765,22 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
     };
 
     if (colorspace_ext) {
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_PASS_THROUGH_EXT});
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_PASS_THROUGH_EXT});
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_BT709_LINEAR_EXT});
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+        for (VkColorSpaceKHR colorSpace :
+             colorSpaceSupportedByVkEXTSwapchainColorspace) {
+            if (GetNativeDataspace(colorSpace, GetNativePixelFormat(
+                                                   VK_FORMAT_R8G8B8A8_UNORM)) !=
+                DataSpace::UNKNOWN) {
+                all_formats.emplace_back(
+                    VkSurfaceFormatKHR{VK_FORMAT_R8G8B8A8_UNORM, colorSpace});
+            }
+
+            if (GetNativeDataspace(colorSpace, GetNativePixelFormat(
+                                                   VK_FORMAT_R8G8B8A8_SRGB)) !=
+                DataSpace::UNKNOWN) {
+                all_formats.emplace_back(
+                    VkSurfaceFormatKHR{VK_FORMAT_R8G8B8A8_SRGB, colorSpace});
+            }
+        }
     }
 
     // NOTE: Any new formats that are added must be coordinated across different
@@ -766,9 +792,16 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         all_formats.emplace_back(VkSurfaceFormatKHR{
             VK_FORMAT_R5G6B5_UNORM_PACK16, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R5G6B5_UNORM_PACK16,
-                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
+            for (VkColorSpaceKHR colorSpace :
+                 colorSpaceSupportedByVkEXTSwapchainColorspace) {
+                if (GetNativeDataspace(
+                        colorSpace,
+                        GetNativePixelFormat(VK_FORMAT_R5G6B5_UNORM_PACK16)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_R5G6B5_UNORM_PACK16, colorSpace});
+                }
+            }
         }
     }
 
@@ -777,15 +810,28 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         all_formats.emplace_back(VkSurfaceFormatKHR{
             VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
-                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
-                                   VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
-                                   VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT});
+            for (VkColorSpaceKHR colorSpace :
+                 colorSpaceSupportedByVkEXTSwapchainColorspace) {
+                if (GetNativeDataspace(
+                        colorSpace,
+                        GetNativePixelFormat(VK_FORMAT_R16G16B16A16_SFLOAT)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_R16G16B16A16_SFLOAT, colorSpace});
+                }
+            }
+
+            for (
+                VkColorSpaceKHR colorSpace :
+                colorSpaceSupportedByVkEXTSwapchainColorspaceOnFP16SurfaceOnly) {
+                if (GetNativeDataspace(
+                        colorSpace,
+                        GetNativePixelFormat(VK_FORMAT_R16G16B16A16_SFLOAT)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_R16G16B16A16_SFLOAT, colorSpace});
+                }
+            }
         }
     }
 
@@ -795,12 +841,16 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
                                VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+            for (VkColorSpaceKHR colorSpace :
+                 colorSpaceSupportedByVkEXTSwapchainColorspace) {
+                if (GetNativeDataspace(
+                        colorSpace, GetNativePixelFormat(
+                                        VK_FORMAT_A2B10G10R10_UNORM_PACK32)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_A2B10G10R10_UNORM_PACK32, colorSpace});
+                }
+            }
         }
     }
 
@@ -833,12 +883,18 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
                                VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
-                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
-                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+            for (VkColorSpaceKHR colorSpace :
+                 colorSpaceSupportedByVkEXTSwapchainColorspace) {
+                if (GetNativeDataspace(
+                        colorSpace,
+                        GetNativePixelFormat(
+                            VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+                        colorSpace});
+                }
+            }
         }
     }
 
@@ -1369,197 +1425,221 @@ static VkResult getProducerUsage(const VkDevice& device,
     const VkPhysicalDevice& pdev = GetData(device).driver_physical_device;
     const InstanceData& instance_data = GetData(pdev);
     const InstanceDriverTable& instance_dispatch = instance_data.driver;
-    if (!instance_dispatch.GetPhysicalDeviceImageFormatProperties2 &&
-            !instance_dispatch.GetPhysicalDeviceImageFormatProperties2KHR) {
-        uint64_t native_usage = 0;
-        void* usage_info_pNext = nullptr;
-        VkResult result;
+    if (instance_dispatch.GetPhysicalDeviceImageFormatProperties2 ||
+            instance_dispatch.GetPhysicalDeviceImageFormatProperties2KHR) {
+        // Look through the create_info pNext chain passed to createSwapchainKHR
+        // for an image compression control struct.
+        // if one is found AND the appropriate extensions are enabled, create a
+        // VkImageCompressionControlEXT structure to pass on to
+        // GetPhysicalDeviceImageFormatProperties2
+        void* compression_control_pNext = nullptr;
         VkImageCompressionControlEXT image_compression = {};
-        const auto& dispatch = GetData(device).driver;
-        if (dispatch.GetSwapchainGrallocUsage4ANDROID) {
-            ATRACE_BEGIN("GetSwapchainGrallocUsage4ANDROID");
-            VkGrallocUsageInfo2ANDROID gralloc_usage_info = {};
-            gralloc_usage_info.sType =
-                VK_STRUCTURE_TYPE_GRALLOC_USAGE_INFO_2_ANDROID;
-            gralloc_usage_info.format = create_info->imageFormat;
-            gralloc_usage_info.imageUsage = create_info->imageUsage;
-            gralloc_usage_info.swapchainImageUsage = swapchain_image_usage;
-
-            // Look through the pNext chain for an image compression control struct
-            // if one is found AND the appropriate extensions are enabled,
-            // append it to be the gralloc usage pNext chain
-            const VkSwapchainCreateInfoKHR* create_infos = create_info;
-            while (create_infos->pNext) {
-                create_infos = reinterpret_cast<const VkSwapchainCreateInfoKHR*>(
-                    create_infos->pNext);
-                switch (create_infos->sType) {
-                    case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
-                        const VkImageCompressionControlEXT* compression_infos =
-                            reinterpret_cast<const VkImageCompressionControlEXT*>(
-                                create_infos);
-                        image_compression = *compression_infos;
-                        image_compression.pNext = nullptr;
-                        usage_info_pNext = &image_compression;
-                    } break;
-
-                    default:
-                        // Ignore all other info structs
-                        break;
-                }
+        const VkSwapchainCreateInfoKHR* create_infos = create_info;
+        while (create_infos->pNext) {
+            create_infos = reinterpret_cast<const VkSwapchainCreateInfoKHR*>(create_infos->pNext);
+            switch (create_infos->sType) {
+                case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
+                    const VkImageCompressionControlEXT* compression_infos =
+                        reinterpret_cast<const VkImageCompressionControlEXT*>(create_infos);
+                    image_compression = *compression_infos;
+                    image_compression.pNext = nullptr;
+                    compression_control_pNext = &image_compression;
+                } break;
+                default:
+                    // Ignore all other info structs
+                    break;
             }
-            gralloc_usage_info.pNext = usage_info_pNext;
-
-            result = dispatch.GetSwapchainGrallocUsage4ANDROID(
-                device, &gralloc_usage_info, &native_usage);
-            ATRACE_END();
-            if (result != VK_SUCCESS) {
-                ALOGE("vkGetSwapchainGrallocUsage4ANDROID failed: %d", result);
-                return VK_ERROR_SURFACE_LOST_KHR;
-            }
-        } else if (dispatch.GetSwapchainGrallocUsage3ANDROID) {
-            ATRACE_BEGIN("GetSwapchainGrallocUsage3ANDROID");
-            VkGrallocUsageInfoANDROID gralloc_usage_info = {};
-            gralloc_usage_info.sType = VK_STRUCTURE_TYPE_GRALLOC_USAGE_INFO_ANDROID;
-            gralloc_usage_info.format = create_info->imageFormat;
-            gralloc_usage_info.imageUsage = create_info->imageUsage;
-
-            // Look through the pNext chain for an image compression control struct
-            // if one is found AND the appropriate extensions are enabled,
-            // append it to be the gralloc usage pNext chain
-            const VkSwapchainCreateInfoKHR* create_infos = create_info;
-            while (create_infos->pNext) {
-                create_infos = reinterpret_cast<const VkSwapchainCreateInfoKHR*>(
-                    create_infos->pNext);
-                switch (create_infos->sType) {
-                    case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
-                        const VkImageCompressionControlEXT* compression_infos =
-                            reinterpret_cast<const VkImageCompressionControlEXT*>(
-                                create_infos);
-                        image_compression = *compression_infos;
-                        image_compression.pNext = nullptr;
-                        usage_info_pNext = &image_compression;
-                    } break;
-
-                    default:
-                        // Ignore all other info structs
-                        break;
-                }
-            }
-            gralloc_usage_info.pNext = usage_info_pNext;
-
-            result = dispatch.GetSwapchainGrallocUsage3ANDROID(
-                device, &gralloc_usage_info, &native_usage);
-            ATRACE_END();
-            if (result != VK_SUCCESS) {
-                ALOGE("vkGetSwapchainGrallocUsage3ANDROID failed: %d", result);
-                return VK_ERROR_SURFACE_LOST_KHR;
-            }
-        } else if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
-            uint64_t consumer_usage, producer_usage;
-            ATRACE_BEGIN("GetSwapchainGrallocUsage2ANDROID");
-            result = dispatch.GetSwapchainGrallocUsage2ANDROID(
-                device, create_info->imageFormat, create_info->imageUsage,
-                swapchain_image_usage, &consumer_usage, &producer_usage);
-            ATRACE_END();
-            if (result != VK_SUCCESS) {
-                ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
-                return VK_ERROR_SURFACE_LOST_KHR;
-            }
-            native_usage =
-                convertGralloc1ToBufferUsage(producer_usage, consumer_usage);
-        } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
-            ATRACE_BEGIN("GetSwapchainGrallocUsageANDROID");
-            int32_t legacy_usage = 0;
-            result = dispatch.GetSwapchainGrallocUsageANDROID(
-                device, create_info->imageFormat, create_info->imageUsage,
-                &legacy_usage);
-            ATRACE_END();
-            if (result != VK_SUCCESS) {
-                ALOGE("vkGetSwapchainGrallocUsageANDROID failed: %d", result);
-                return VK_ERROR_SURFACE_LOST_KHR;
-            }
-            native_usage = static_cast<uint64_t>(legacy_usage);
         }
-        *producer_usage = native_usage;
 
-        return VK_SUCCESS;
+        // call GetPhysicalDeviceImageFormatProperties2KHR
+        VkPhysicalDeviceExternalImageFormatInfo external_image_format_info = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
+            .pNext = compression_control_pNext,
+            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID,
+        };
+
+        // AHB does not have an sRGB format so we can't pass it to GPDIFP
+        // We need to convert the format to unorm if it is srgb
+        VkFormat format = create_info->imageFormat;
+        if (format == VK_FORMAT_R8G8B8A8_SRGB) {
+            format = VK_FORMAT_R8G8B8A8_UNORM;
+        }
+
+        VkPhysicalDeviceImageFormatInfo2 image_format_info = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
+            .pNext = &external_image_format_info,
+            .format = format,
+            .type = VK_IMAGE_TYPE_2D,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = create_info->imageUsage,
+            .flags = create_protected_swapchain ? VK_IMAGE_CREATE_PROTECTED_BIT : 0u,
+        };
+
+        VkAndroidHardwareBufferUsageANDROID ahb_usage;
+        ahb_usage.sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_USAGE_ANDROID;
+        ahb_usage.pNext = nullptr;
+
+        VkImageFormatProperties2 image_format_properties;
+        image_format_properties.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2;
+        image_format_properties.pNext = &ahb_usage;
+
+        if (instance_dispatch.GetPhysicalDeviceImageFormatProperties2) {
+            VkResult result = instance_dispatch.GetPhysicalDeviceImageFormatProperties2(
+                pdev, &image_format_info, &image_format_properties);
+            if (result != VK_SUCCESS) {
+                ALOGE("VkGetPhysicalDeviceImageFormatProperties2 for AHB usage failed: %d", result);
+                return VK_ERROR_SURFACE_LOST_KHR;
+            }
+        }
+        else {
+            VkResult result = instance_dispatch.GetPhysicalDeviceImageFormatProperties2KHR(
+                pdev, &image_format_info,
+                &image_format_properties);
+            if (result != VK_SUCCESS) {
+                ALOGE("VkGetPhysicalDeviceImageFormatProperties2KHR for AHB usage failed: %d",
+                    result);
+                return VK_ERROR_SURFACE_LOST_KHR;
+            }
+        }
+
+        // Determine if USAGE_FRONT_BUFFER is needed.
+        // GPDIFP2 has no means of using VkSwapchainImageUsageFlagsANDROID when
+        // querying for producer_usage. So androidHardwareBufferUsage will not
+        // contain USAGE_FRONT_BUFFER. We need to manually check for usage here.
+        if (!(swapchain_image_usage & VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID)) {
+            *producer_usage = ahb_usage.androidHardwareBufferUsage;
+            return VK_SUCCESS;
+        }
+
+        // Check if USAGE_FRONT_BUFFER is supported for this swapchain
+        AHardwareBuffer_Desc ahb_desc = {
+            .width = create_info->imageExtent.width,
+            .height = create_info->imageExtent.height,
+            .layers = create_info->imageArrayLayers,
+            .format = create_info->imageFormat,
+            .usage = ahb_usage.androidHardwareBufferUsage | AHARDWAREBUFFER_USAGE_FRONT_BUFFER,
+            .stride = 0, // stride is always ignored when calling isSupported()
+        };
+
+        // If FRONT_BUFFER is not supported,
+        // then we need to call GetSwapchainGrallocUsageXAndroid below
+        if (AHardwareBuffer_isSupported(&ahb_desc)) {
+            *producer_usage = ahb_usage.androidHardwareBufferUsage;
+            *producer_usage |= AHARDWAREBUFFER_USAGE_FRONT_BUFFER;
+            return VK_SUCCESS;
+        }
     }
 
-    // Look through the create_info pNext chain passed to createSwapchainKHR
-    // for an image compression control struct.
-    // if one is found AND the appropriate extensions are enabled, create a
-    // VkImageCompressionControlEXT structure to pass on to GetPhysicalDeviceImageFormatProperties2
-    void* compression_control_pNext = nullptr;
+    uint64_t native_usage = 0;
+    void* usage_info_pNext = nullptr;
+    VkResult result;
     VkImageCompressionControlEXT image_compression = {};
-    const VkSwapchainCreateInfoKHR* create_infos = create_info;
-    while (create_infos->pNext) {
-        create_infos = reinterpret_cast<const VkSwapchainCreateInfoKHR*>(create_infos->pNext);
-        switch (create_infos->sType) {
-            case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
-                const VkImageCompressionControlEXT* compression_infos =
-                    reinterpret_cast<const VkImageCompressionControlEXT*>(create_infos);
-                image_compression = *compression_infos;
-                image_compression.pNext = nullptr;
-                compression_control_pNext = &image_compression;
-            } break;
-            default:
-                // Ignore all other info structs
-                break;
+    const auto& dispatch = GetData(device).driver;
+    if (dispatch.GetSwapchainGrallocUsage4ANDROID) {
+        ATRACE_BEGIN("GetSwapchainGrallocUsage4ANDROID");
+        VkGrallocUsageInfo2ANDROID gralloc_usage_info = {};
+        gralloc_usage_info.sType =
+            VK_STRUCTURE_TYPE_GRALLOC_USAGE_INFO_2_ANDROID;
+        gralloc_usage_info.format = create_info->imageFormat;
+        gralloc_usage_info.imageUsage = create_info->imageUsage;
+        gralloc_usage_info.swapchainImageUsage = swapchain_image_usage;
+
+        // Look through the pNext chain for an image compression control struct
+        // if one is found AND the appropriate extensions are enabled,
+        // append it to be the gralloc usage pNext chain
+        const VkSwapchainCreateInfoKHR* create_infos = create_info;
+        while (create_infos->pNext) {
+            create_infos = reinterpret_cast<const VkSwapchainCreateInfoKHR*>(
+                create_infos->pNext);
+            switch (create_infos->sType) {
+                case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
+                    const VkImageCompressionControlEXT* compression_infos =
+                        reinterpret_cast<const VkImageCompressionControlEXT*>(
+                            create_infos);
+                    image_compression = *compression_infos;
+                    image_compression.pNext = nullptr;
+                    usage_info_pNext = &image_compression;
+                } break;
+
+                default:
+                    // Ignore all other info structs
+                    break;
+            }
         }
-    }
+        gralloc_usage_info.pNext = usage_info_pNext;
 
-    // call GetPhysicalDeviceImageFormatProperties2KHR
-    VkPhysicalDeviceExternalImageFormatInfo external_image_format_info = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
-        .pNext = compression_control_pNext,
-        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID,
-    };
-
-    // AHB does not have an sRGB format so we can't pass it to GPDIFP
-    // We need to convert the format to unorm if it is srgb
-    VkFormat format = create_info->imageFormat;
-    if (format == VK_FORMAT_R8G8B8A8_SRGB) {
-        format = VK_FORMAT_R8G8B8A8_UNORM;
-    }
-
-    VkPhysicalDeviceImageFormatInfo2 image_format_info = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
-        .pNext = &external_image_format_info,
-        .format = format,
-        .type = VK_IMAGE_TYPE_2D,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = create_info->imageUsage,
-        .flags = create_protected_swapchain ? VK_IMAGE_CREATE_PROTECTED_BIT : 0u,
-    };
-
-    VkAndroidHardwareBufferUsageANDROID ahb_usage;
-    ahb_usage.sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_USAGE_ANDROID;
-    ahb_usage.pNext = nullptr;
-
-    VkImageFormatProperties2 image_format_properties;
-    image_format_properties.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2;
-    image_format_properties.pNext = &ahb_usage;
-
-    if (instance_dispatch.GetPhysicalDeviceImageFormatProperties2) {
-        VkResult result = instance_dispatch.GetPhysicalDeviceImageFormatProperties2(
-            pdev, &image_format_info, &image_format_properties);
+        result = dispatch.GetSwapchainGrallocUsage4ANDROID(
+            device, &gralloc_usage_info, &native_usage);
+        ATRACE_END();
         if (result != VK_SUCCESS) {
-            ALOGE("VkGetPhysicalDeviceImageFormatProperties2 for AHB usage failed: %d", result);
+            ALOGE("vkGetSwapchainGrallocUsage4ANDROID failed: %d", result);
             return VK_ERROR_SURFACE_LOST_KHR;
         }
-    }
-    else {
-        VkResult result = instance_dispatch.GetPhysicalDeviceImageFormatProperties2KHR(
-            pdev, &image_format_info,
-            &image_format_properties);
+    } else if (dispatch.GetSwapchainGrallocUsage3ANDROID) {
+        ATRACE_BEGIN("GetSwapchainGrallocUsage3ANDROID");
+        VkGrallocUsageInfoANDROID gralloc_usage_info = {};
+        gralloc_usage_info.sType = VK_STRUCTURE_TYPE_GRALLOC_USAGE_INFO_ANDROID;
+        gralloc_usage_info.format = create_info->imageFormat;
+        gralloc_usage_info.imageUsage = create_info->imageUsage;
+
+        // Look through the pNext chain for an image compression control struct
+        // if one is found AND the appropriate extensions are enabled,
+        // append it to be the gralloc usage pNext chain
+        const VkSwapchainCreateInfoKHR* create_infos = create_info;
+        while (create_infos->pNext) {
+            create_infos = reinterpret_cast<const VkSwapchainCreateInfoKHR*>(
+                create_infos->pNext);
+            switch (create_infos->sType) {
+                case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
+                    const VkImageCompressionControlEXT* compression_infos =
+                        reinterpret_cast<const VkImageCompressionControlEXT*>(
+                            create_infos);
+                    image_compression = *compression_infos;
+                    image_compression.pNext = nullptr;
+                    usage_info_pNext = &image_compression;
+                } break;
+
+                default:
+                    // Ignore all other info structs
+                    break;
+            }
+        }
+        gralloc_usage_info.pNext = usage_info_pNext;
+
+        result = dispatch.GetSwapchainGrallocUsage3ANDROID(
+            device, &gralloc_usage_info, &native_usage);
+        ATRACE_END();
         if (result != VK_SUCCESS) {
-            ALOGE("VkGetPhysicalDeviceImageFormatProperties2KHR for AHB usage failed: %d",
-                result);
+            ALOGE("vkGetSwapchainGrallocUsage3ANDROID failed: %d", result);
             return VK_ERROR_SURFACE_LOST_KHR;
         }
+    } else if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
+        uint64_t consumer_usage, producer_usage;
+        ATRACE_BEGIN("GetSwapchainGrallocUsage2ANDROID");
+        result = dispatch.GetSwapchainGrallocUsage2ANDROID(
+            device, create_info->imageFormat, create_info->imageUsage,
+            swapchain_image_usage, &consumer_usage, &producer_usage);
+        ATRACE_END();
+        if (result != VK_SUCCESS) {
+            ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        native_usage =
+            convertGralloc1ToBufferUsage(producer_usage, consumer_usage);
+    } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
+        ATRACE_BEGIN("GetSwapchainGrallocUsageANDROID");
+        int32_t legacy_usage = 0;
+        result = dispatch.GetSwapchainGrallocUsageANDROID(
+            device, create_info->imageFormat, create_info->imageUsage,
+            &legacy_usage);
+        ATRACE_END();
+        if (result != VK_SUCCESS) {
+            ALOGE("vkGetSwapchainGrallocUsageANDROID failed: %d", result);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+        native_usage = static_cast<uint64_t>(legacy_usage);
     }
-
-    *producer_usage = ahb_usage.androidHardwareBufferUsage;
+    *producer_usage = native_usage;
 
     return VK_SUCCESS;
 }

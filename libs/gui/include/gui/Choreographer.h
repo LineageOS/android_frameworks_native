@@ -116,6 +116,8 @@ private:
     void dispatchNullEvent(nsecs_t, PhysicalDisplayId) override;
     void dispatchFrameRateOverrides(nsecs_t timestamp, PhysicalDisplayId displayId,
                                     std::vector<FrameRateOverride> overrides) override;
+    void dispatchHdcpLevelsChanged(PhysicalDisplayId displayId, int32_t connectedLevel,
+                                   int32_t maxLevel) override;
 
     void scheduleCallbacks();
 

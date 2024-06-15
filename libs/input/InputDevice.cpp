@@ -20,12 +20,14 @@
 #include <unistd.h>
 #include <ctype.h>
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <ftl/enum.h>
 #include <gui/constants.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
 
+using android::base::GetProperty;
 using android::base::StringPrintf;
 
 namespace android {
@@ -96,21 +98,22 @@ std::string getInputDeviceConfigurationFilePathByName(
 
     // Treblized input device config files will be located /product/usr, /system_ext/usr,
     // /odm/usr or /vendor/usr.
-    // These files may also be in the com.android.input.config APEX.
-    const char* rootsForPartition[]{
-            "/product",
-            "/system_ext",
-            "/odm",
-            "/vendor",
-            "/apex/com.android.input.config/etc",
-            getenv("ANDROID_ROOT"),
+    std::vector<std::string> pathPrefixes{
+            "/product/usr/",
+            "/system_ext/usr/",
+            "/odm/usr/",
+            "/vendor/usr/",
     };
-    for (size_t i = 0; i < size(rootsForPartition); i++) {
-        if (rootsForPartition[i] == nullptr) {
-            continue;
-        }
-        path = rootsForPartition[i];
-        path += "/usr/";
+    // These files may also be in the APEX pointed by input_device.config_file.apex sysprop.
+    if (auto apex = GetProperty("input_device.config_file.apex", ""); !apex.empty()) {
+        pathPrefixes.push_back("/apex/" + apex + "/etc/usr/");
+    }
+    // ANDROID_ROOT may not be set on host
+    if (auto android_root = getenv("ANDROID_ROOT"); android_root != nullptr) {
+        pathPrefixes.push_back(std::string(android_root) + "/usr/");
+    }
+    for (const auto& prefix : pathPrefixes) {
+        path = prefix;
         appendInputDeviceConfigurationFileRelativePath(path, name, type);
 #if DEBUG_PROBE
         ALOGD("Probing for system provided input device configuration file: path='%s'",
@@ -190,14 +193,16 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mHasSensor(other.mHasSensor),
         mMotionRanges(other.mMotionRanges),
         mSensors(other.mSensors),
-        mLights(other.mLights) {}
+        mLights(other.mLights),
+        mViewBehavior(other.mViewBehavior) {}
 
 InputDeviceInfo::~InputDeviceInfo() {
 }
 
 void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                                  const InputDeviceIdentifier& identifier, const std::string& alias,
-                                 bool isExternal, bool hasMic, int32_t associatedDisplayId) {
+                                 bool isExternal, bool hasMic, int32_t associatedDisplayId,
+                                 InputDeviceViewBehavior viewBehavior) {
     mId = id;
     mGeneration = generation;
     mControllerNumber = controllerNumber;
@@ -212,6 +217,7 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mHasBattery = false;
     mHasButtonUnderPad = false;
     mHasSensor = false;
+    mViewBehavior = viewBehavior;
     mUsiVersion.reset();
     mMotionRanges.clear();
     mSensors.clear();

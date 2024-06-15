@@ -20,13 +20,16 @@
 #include <optional>
 #include <string>
 
+#include <ftl/mixins.h>
+#include <scheduler/Time.h>
 #include <utils/Timers.h>
-
-#include "StrongTyping.h"
 
 namespace android::scheduler {
 
-using ScheduleResult = std::optional<nsecs_t>;
+struct ScheduleResult {
+    TimePoint callbackTime;
+    TimePoint vsyncTime;
+};
 
 enum class CancelResult { Cancelled, TooLate, Error };
 
@@ -35,7 +38,11 @@ enum class CancelResult { Cancelled, TooLate, Error };
  */
 class VSyncDispatch {
 public:
-    using CallbackToken = StrongTyping<size_t, class CallbackTokenTag, Compare, Hash>;
+    struct CallbackToken : ftl::DefaultConstructible<CallbackToken, size_t>,
+                           ftl::Equatable<CallbackToken>,
+                           ftl::Incrementable<CallbackToken> {
+        using DefaultConstructible::DefaultConstructible;
+    };
 
     virtual ~VSyncDispatch();
 
@@ -84,8 +91,8 @@ public:
      *                 able to provide the ready-by time (deadline) on the callback.
      *                 For internal clients, we don't need to add additional padding, so
      *                 readyDuration will typically be 0.
-     * @earliestVsync: The targeted display time. This will be snapped to the closest
-     *                 predicted vsync time after earliestVsync.
+     * @lastVsync: The targeted display time. This will be snapped to the closest
+     *                 predicted vsync time after lastVsync.
      *
      * callback will be dispatched at 'workDuration + readyDuration' nanoseconds before a vsync
      * event.
@@ -93,11 +100,11 @@ public:
     struct ScheduleTiming {
         nsecs_t workDuration = 0;
         nsecs_t readyDuration = 0;
-        nsecs_t earliestVsync = 0;
+        nsecs_t lastVsync = 0;
 
         bool operator==(const ScheduleTiming& other) const {
             return workDuration == other.workDuration && readyDuration == other.readyDuration &&
-                    earliestVsync == other.earliestVsync;
+                    lastVsync == other.lastVsync;
         }
 
         bool operator!=(const ScheduleTiming& other) const { return !(*this == other); }
@@ -109,22 +116,24 @@ public:
      * The callback will be dispatched at 'workDuration + readyDuration' nanoseconds before a vsync
      * event.
      *
-     * The caller designates the earliest vsync event that should be targeted by the earliestVsync
+     * The caller designates the earliest vsync event that should be targeted by the lastVsync
      * parameter.
      * The callback will be scheduled at (workDuration + readyDuration - predictedVsync), where
-     * predictedVsync is the first vsync event time where ( predictedVsync >= earliestVsync ).
+     * predictedVsync is the first vsync event time where ( predictedVsync >= lastVsync ).
      *
-     * If (workDuration + readyDuration - earliestVsync) is in the past, or if a callback has
+     * If (workDuration + readyDuration - lastVsync) is in the past, or if a callback has
      * already been dispatched for the predictedVsync, an error will be returned.
      *
      * It is valid to reschedule a callback to a different time.
      *
      * \param [in] token           The callback to schedule.
      * \param [in] scheduleTiming  The timing information for this schedule call
-     * \return                     The expected callback time if a callback was scheduled.
+     * \return                     The expected callback time if a callback was scheduled,
+     *                             along with VSYNC time for the callback scheduled.
      *                             std::nullopt if the callback is not registered.
      */
-    virtual ScheduleResult schedule(CallbackToken token, ScheduleTiming scheduleTiming) = 0;
+    virtual std::optional<ScheduleResult> schedule(CallbackToken token,
+                                                   ScheduleTiming scheduleTiming) = 0;
 
     /*
      * Update the timing information for a scheduled callback.
@@ -132,10 +141,12 @@ public:
      *
      * \param [in] token           The callback to schedule.
      * \param [in] scheduleTiming  The timing information for this schedule call
-     * \return                     The expected callback time if a callback was scheduled.
+     * \return                     The expected callback time if a callback was scheduled,
+     *                             along with VSYNC time for the callback scheduled.
      *                             std::nullopt if the callback is not registered.
      */
-    virtual ScheduleResult update(CallbackToken token, ScheduleTiming scheduleTiming) = 0;
+    virtual std::optional<ScheduleResult> update(CallbackToken token,
+                                                 ScheduleTiming scheduleTiming) = 0;
 
     /* Cancels a scheduled callback, if possible.
      *
@@ -165,10 +176,10 @@ public:
     VSyncCallbackRegistration& operator=(VSyncCallbackRegistration&&);
 
     // See documentation for VSyncDispatch::schedule.
-    ScheduleResult schedule(VSyncDispatch::ScheduleTiming scheduleTiming);
+    std::optional<ScheduleResult> schedule(VSyncDispatch::ScheduleTiming scheduleTiming);
 
     // See documentation for VSyncDispatch::update.
-    ScheduleResult update(VSyncDispatch::ScheduleTiming scheduleTiming);
+    std::optional<ScheduleResult> update(VSyncDispatch::ScheduleTiming scheduleTiming);
 
     // See documentation for VSyncDispatch::cancel.
     CancelResult cancel();

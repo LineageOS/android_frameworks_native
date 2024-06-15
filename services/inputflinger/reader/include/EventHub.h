@@ -336,6 +336,10 @@ public:
     virtual int32_t getSwitchState(int32_t deviceId, int32_t sw) const = 0;
     virtual status_t getAbsoluteAxisValue(int32_t deviceId, int32_t axis,
                                           int32_t* outValue) const = 0;
+    /* Query Multi-Touch slot values for an axis. Returns error or an 1 indexed array of size
+     * (slotCount + 1). The value at the 0 index is set to queried axis. */
+    virtual base::Result<std::vector<int32_t>> getMtSlotValues(int32_t deviceId, int32_t axis,
+                                                               size_t slotCount) const = 0;
     virtual int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const = 0;
 
     /*
@@ -552,6 +556,8 @@ public:
                                      int32_t locationKeyCode) const override final;
     status_t getAbsoluteAxisValue(int32_t deviceId, int32_t axis,
                                   int32_t* outValue) const override final;
+    base::Result<std::vector<int32_t>> getMtSlotValues(int32_t deviceId, int32_t axis,
+                                                       size_t slotCount) const override final;
 
     bool markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags) const override final;

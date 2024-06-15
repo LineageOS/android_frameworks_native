@@ -28,21 +28,31 @@ void FakePointerController::setBounds(float minX, float minY, float maxX, float 
     mMaxY = maxY;
 }
 
+void FakePointerController::clearBounds() {
+    mHaveBounds = false;
+}
+
 const std::map<int32_t, std::vector<int32_t>>& FakePointerController::getSpots() {
     return mSpotsByDisplay;
 }
 
 void FakePointerController::setPosition(float x, float y) {
+    if (!mEnabled) return;
+
     mX = x;
     mY = y;
 }
 
 FloatPoint FakePointerController::getPosition() const {
+    if (!mEnabled) {
+        return {0, 0};
+    }
+
     return {mX, mY};
 }
 
 int32_t FakePointerController::getDisplayId() const {
-    if (!mDisplayId) {
+    if (!mEnabled || !mDisplayId) {
         return ADISPLAY_ID_NONE;
     }
     return *mDisplayId;
@@ -60,6 +70,8 @@ void FakePointerController::updatePointerIcon(PointerIconStyle iconId) {
 }
 
 void FakePointerController::setCustomPointerIcon(const SpriteIcon& icon) {
+    if (!mEnabled) return;
+
     ASSERT_FALSE(mCustomIconStyle.has_value()) << "Custom pointer icon was set more than once";
     mCustomIconStyle = icon.style;
 }
@@ -110,10 +122,14 @@ bool FakePointerController::isPointerShown() {
 }
 
 std::optional<FloatRect> FakePointerController::getBounds() const {
+    if (!mEnabled) return std::nullopt;
+
     return mHaveBounds ? std::make_optional<FloatRect>(mMinX, mMinY, mMaxX, mMaxY) : std::nullopt;
 }
 
 void FakePointerController::move(float deltaX, float deltaY) {
+    if (!mEnabled) return;
+
     mX += deltaX;
     if (mX < mMinX) mX = mMinX;
     if (mX > mMaxX) mX = mMaxX;
@@ -123,14 +139,20 @@ void FakePointerController::move(float deltaX, float deltaY) {
 }
 
 void FakePointerController::fade(Transition) {
+    if (!mEnabled) return;
+
     mIsPointerShown = false;
 }
 void FakePointerController::unfade(Transition) {
+    if (!mEnabled) return;
+
     mIsPointerShown = true;
 }
 
 void FakePointerController::setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,
                                      int32_t displayId) {
+    if (!mEnabled) return;
+
     std::vector<int32_t> newSpots;
     // Add spots for fingers that are down.
     for (BitSet32 idBits(spotIdBits); !idBits.isEmpty();) {
@@ -142,6 +164,8 @@ void FakePointerController::setSpots(const PointerCoords*, const uint32_t*, BitS
 }
 
 void FakePointerController::clearSpots() {
+    if (!mEnabled) return;
+
     mSpotsByDisplay.clear();
 }
 

@@ -330,7 +330,11 @@ std::string AidlComposer::dumpDebugInfo() {
 
     t.join();
     close(pipefds[0]);
-    return str;
+
+    std::string hash;
+    mAidlComposer->getInterfaceHash(&hash);
+    return std::string(mAidlComposer->descriptor) +
+            " version:" + std::to_string(mComposerInterfaceVersion) + " hash:" + hash + str;
 }
 
 void AidlComposer::registerCallback(HWC2::ComposerCallback& callback) {
@@ -339,7 +343,9 @@ void AidlComposer::registerCallback(HWC2::ComposerCallback& callback) {
     }
 
     mAidlComposerCallback = ndk::SharedRefBase::make<AidlIComposerCallbackWrapper>(callback);
-    AIBinder_setMinSchedulerPolicy(mAidlComposerCallback->asBinder().get(), SCHED_FIFO, 2);
+
+    ndk::SpAIBinder binder = mAidlComposerCallback->asBinder();
+    AIBinder_setMinSchedulerPolicy(binder.get(), SCHED_FIFO, 2);
 
     const auto status = mAidlComposerClient->registerCallback(mAidlComposerCallback);
     if (!status.isOk()) {

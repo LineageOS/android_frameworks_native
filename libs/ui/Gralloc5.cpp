@@ -19,6 +19,7 @@
 
 #include <ui/Gralloc5.h>
 
+#include <aidl/android/hardware/graphics/allocator/AllocationError.h>
 #include <aidlcommonsupport/NativeHandle.h>
 #include <android/binder_manager.h>
 #include <android/hardware/graphics/mapper/utils/IMapperMetadataTypes.h>
@@ -88,10 +89,18 @@ static void *loadIMapperLibrary() {
             return nullptr;
         }
 
-        std::string lib_name = "mapper." + mapperSuffix + ".so";
-        void *so = android_load_sphal_library(lib_name.c_str(), RTLD_LOCAL | RTLD_NOW);
+        void* so = nullptr;
+        // TODO(b/322384429) switch this to __ANDROID_API_V__ when V is finalized
+        // TODO(b/302113279) use __ANDROID_VENDOR_API__ for vendor variant
+        if (__builtin_available(android __ANDROID_API_FUTURE__, *)) {
+            so = AServiceManager_openDeclaredPassthroughHal("mapper", mapperSuffix.c_str(),
+                                                            RTLD_LOCAL | RTLD_NOW);
+        } else {
+            std::string lib_name = "mapper." + mapperSuffix + ".so";
+            so = android_load_sphal_library(lib_name.c_str(), RTLD_LOCAL | RTLD_NOW);
+        }
         if (!so) {
-            ALOGE("Failed to load %s", lib_name.c_str());
+            ALOGE("Failed to load mapper.%s.so", mapperSuffix.c_str());
         }
         return so;
     }();
@@ -222,55 +231,75 @@ std::string Gralloc5Allocator::dumpDebugInfo(bool less) const {
 
 status_t Gralloc5Allocator::allocate(std::string requestorName, uint32_t width, uint32_t height,
                                      android::PixelFormat format, uint32_t layerCount,
-                                     uint64_t usage, uint32_t bufferCount, uint32_t *outStride,
-                                     buffer_handle_t *outBufferHandles, bool importBuffers) const {
-    auto descriptorInfo = makeDescriptor(requestorName, width, height, format, layerCount, usage);
+                                     uint64_t usage, uint32_t* outStride,
+                                     buffer_handle_t* outBufferHandles, bool importBuffers) const {
+    auto result = allocate(GraphicBufferAllocator::AllocationRequest{
+            .importBuffer = importBuffers,
+            .width = width,
+            .height = height,
+            .format = format,
+            .layerCount = layerCount,
+            .usage = usage,
+            .requestorName = requestorName,
+    });
+
+    *outStride = result.stride;
+    outBufferHandles[0] = result.handle;
+    return result.status;
+}
+
+GraphicBufferAllocator::AllocationResult Gralloc5Allocator::allocate(
+        const GraphicBufferAllocator::AllocationRequest& request) const {
+    auto descriptorInfo = makeDescriptor(request.requestorName, request.width, request.height,
+                                         request.format, request.layerCount, request.usage);
     if (!descriptorInfo) {
-        return BAD_VALUE;
+        return GraphicBufferAllocator::AllocationResult{BAD_VALUE};
+    }
+
+    descriptorInfo->additionalOptions.reserve(request.extras.size());
+    for (const auto& option : request.extras) {
+        ExtendableType type;
+        type.name = option.name;
+        type.value = option.value;
+        descriptorInfo->additionalOptions.push_back(std::move(type));
     }
 
     AllocationResult result;
-    auto status = mAllocator->allocate2(*descriptorInfo, bufferCount, &result);
+    auto status = mAllocator->allocate2(*descriptorInfo, 1, &result);
     if (!status.isOk()) {
         auto error = status.getExceptionCode();
         if (error == EX_SERVICE_SPECIFIC) {
-            error = status.getServiceSpecificError();
+            switch (static_cast<AllocationError>(status.getServiceSpecificError())) {
+                case AllocationError::BAD_DESCRIPTOR:
+                    error = BAD_VALUE;
+                    break;
+                case AllocationError::NO_RESOURCES:
+                    error = NO_MEMORY;
+                    break;
+                default:
+                    error = UNKNOWN_ERROR;
+                    break;
+            }
         }
-        if (error == OK) {
-            error = UNKNOWN_ERROR;
-        }
-        return error;
+        return GraphicBufferAllocator::AllocationResult{error};
     }
 
-    if (importBuffers) {
-        for (uint32_t i = 0; i < bufferCount; i++) {
-            auto handle = makeFromAidl(result.buffers[i]);
-            auto error = mMapper.importBuffer(handle, &outBufferHandles[i]);
-            native_handle_delete(handle);
-            if (error != NO_ERROR) {
-                for (uint32_t j = 0; j < i; j++) {
-                    mMapper.freeBuffer(outBufferHandles[j]);
-                    outBufferHandles[j] = nullptr;
-                }
-                return error;
-            }
+    GraphicBufferAllocator::AllocationResult ret{OK};
+    if (request.importBuffer) {
+        auto handle = makeFromAidl(result.buffers[0]);
+        auto error = mMapper.importBuffer(handle, &ret.handle);
+        native_handle_delete(handle);
+        if (error != NO_ERROR) {
+            return GraphicBufferAllocator::AllocationResult{error};
         }
     } else {
-        for (uint32_t i = 0; i < bufferCount; i++) {
-            outBufferHandles[i] = dupFromAidl(result.buffers[i]);
-            if (!outBufferHandles[i]) {
-                for (uint32_t j = 0; j < i; j++) {
-                    auto buffer = const_cast<native_handle_t *>(outBufferHandles[j]);
-                    native_handle_close(buffer);
-                    native_handle_delete(buffer);
-                    outBufferHandles[j] = nullptr;
-                }
-                return NO_MEMORY;
-            }
+        ret.handle = dupFromAidl(result.buffers[0]);
+        if (!ret.handle) {
+            return GraphicBufferAllocator::AllocationResult{NO_MEMORY};
         }
     }
 
-    *outStride = result.stride;
+    ret.stride = result.stride;
 
     // Release all the resources held by AllocationResult (specifically any remaining FDs)
     result = {};
@@ -279,7 +308,7 @@ status_t Gralloc5Allocator::allocate(std::string requestorName, uint32_t width, 
     // is marked apex_available (b/214400477) and libbinder isn't (which of course is correct)
     // IPCThreadState::self()->flushCommands();
 
-    return OK;
+    return ret;
 }
 
 void Gralloc5Mapper::preload() {
@@ -575,37 +604,8 @@ void Gralloc5Mapper::getTransportSize(buffer_handle_t bufferHandle, uint32_t *ou
 status_t Gralloc5Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect &bounds,
                               int acquireFence, void **outData, int32_t *outBytesPerPixel,
                               int32_t *outBytesPerStride) const {
-    std::vector<ui::PlaneLayout> planeLayouts;
-    status_t err = getPlaneLayouts(bufferHandle, &planeLayouts);
-
-    if (err == NO_ERROR && !planeLayouts.empty()) {
-        if (outBytesPerPixel) {
-            int32_t bitsPerPixel = planeLayouts.front().sampleIncrementInBits;
-            for (const auto &planeLayout : planeLayouts) {
-                if (bitsPerPixel != planeLayout.sampleIncrementInBits) {
-                    bitsPerPixel = -1;
-                }
-            }
-            if (bitsPerPixel >= 0 && bitsPerPixel % 8 == 0) {
-                *outBytesPerPixel = bitsPerPixel / 8;
-            } else {
-                *outBytesPerPixel = -1;
-            }
-        }
-        if (outBytesPerStride) {
-            int32_t bytesPerStride = planeLayouts.front().strideInBytes;
-            for (const auto &planeLayout : planeLayouts) {
-                if (bytesPerStride != planeLayout.strideInBytes) {
-                    bytesPerStride = -1;
-                }
-            }
-            if (bytesPerStride >= 0) {
-                *outBytesPerStride = bytesPerStride;
-            } else {
-                *outBytesPerStride = -1;
-            }
-        }
-    }
+    if (outBytesPerPixel) *outBytesPerPixel = -1;
+    if (outBytesPerStride) *outBytesPerStride = -1;
 
     auto status = mMapper->v5.lock(bufferHandle, usage, bounds, acquireFence, outData);
 

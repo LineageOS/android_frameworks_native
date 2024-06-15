@@ -100,6 +100,11 @@ std::string toString(const DisplayEventReceiver::Event& event) {
         case DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE:
             return StringPrintf("ModeChanged{displayId=%s, modeId=%u}",
                                 to_string(event.header.displayId).c_str(), event.modeChange.modeId);
+        case DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE:
+            return StringPrintf("HdcpLevelsChange{displayId=%s, connectedLevel=%d, maxLevel=%d}",
+                                to_string(event.header.displayId).c_str(),
+                                event.hdcpLevelsChange.connectedLevel,
+                                event.hdcpLevelsChange.maxLevel);
         default:
             return "Event{}";
     }
@@ -143,7 +148,7 @@ DisplayEventReceiver::Event makeModeChanged(const scheduler::FrameRateMode& mode
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE,
                     mode.modePtr->getPhysicalDisplayId(), systemTime()};
-    event.modeChange.modeId = mode.modePtr->getId().value();
+    event.modeChange.modeId = ftl::to_underlying(mode.modePtr->getId());
     event.modeChange.vsyncPeriod = mode.fps.getPeriodNsecs();
     return event;
 }
@@ -168,6 +173,20 @@ DisplayEventReceiver::Event makeFrameRateOverrideFlushEvent(PhysicalDisplayId di
                     .displayId = displayId,
                     .timestamp = systemTime(),
             }};
+}
+
+DisplayEventReceiver::Event makeHdcpLevelsChange(PhysicalDisplayId displayId,
+                                                 int32_t connectedLevel, int32_t maxLevel) {
+    return DisplayEventReceiver::Event{
+            .header =
+                    DisplayEventReceiver::Event::Header{
+                            .type = DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE,
+                            .displayId = displayId,
+                            .timestamp = systemTime(),
+                    },
+            .hdcpLevelsChange.connectedLevel = connectedLevel,
+            .hdcpLevelsChange.maxLevel = maxLevel,
+    };
 }
 
 } // namespace
@@ -301,7 +320,7 @@ void EventThread::setDuration(std::chrono::nanoseconds workDuration,
 
     mVsyncRegistration.update({.workDuration = mWorkDuration.get().count(),
                                .readyDuration = mReadyDuration.count(),
-                               .earliestVsync = mLastVsyncCallbackTime.ns()});
+                               .lastVsync = mLastVsyncCallbackTime.ns()});
 }
 
 sp<EventThreadConnection> EventThread::createEventConnection(
@@ -385,6 +404,9 @@ VsyncEventData EventThread::getLatestVsyncEventData(
     }();
     generateFrameTimeline(vsyncEventData, frameInterval.ns(), systemTime(SYSTEM_TIME_MONOTONIC),
                           presentTime, deadline);
+    if (FlagManager::getInstance().vrr_config()) {
+        mCallback.onExpectedPresentTimePosted(TimePoint::fromNs(presentTime));
+    }
     return vsyncEventData;
 }
 
@@ -439,6 +461,14 @@ void EventThread::onFrameRateOverridesChanged(PhysicalDisplayId displayId,
     }
     mPendingEvents.push_back(makeFrameRateOverrideFlushEvent(displayId));
 
+    mCondition.notify_all();
+}
+
+void EventThread::onHdcpLevelsChanged(PhysicalDisplayId displayId, int32_t connectedLevel,
+                                      int32_t maxLevel) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    mPendingEvents.push_back(makeHdcpLevelsChange(displayId, connectedLevel, maxLevel));
     mCondition.notify_all();
 }
 
@@ -501,7 +531,7 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             const auto scheduleResult =
                     mVsyncRegistration.schedule({.workDuration = mWorkDuration.get().count(),
                                                  .readyDuration = mReadyDuration.count(),
-                                                 .earliestVsync = mLastVsyncCallbackTime.ns()});
+                                                 .lastVsync = mLastVsyncCallbackTime.ns()});
             LOG_ALWAYS_FATAL_IF(!scheduleResult, "Error scheduling callback");
         } else {
             mVsyncRegistration.cancel();
@@ -555,6 +585,9 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
 
     switch (event.header.type) {
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
+            return true;
+
+        case DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE:
             return true;
 
         case DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE: {
@@ -691,6 +724,11 @@ void EventThread::dispatchEvent(const DisplayEventReceiver::Event& event,
                 removeDisplayEventConnectionLocked(consumer);
         }
     }
+    if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC &&
+        FlagManager::getInstance().vrr_config()) {
+        mCallback.onExpectedPresentTimePosted(
+                TimePoint::fromNs(event.vsync.vsyncData.preferredExpectedPresentationTime()));
+    }
 }
 
 void EventThread::dump(std::string& result) const {
@@ -757,7 +795,7 @@ scheduler::VSyncCallbackRegistration EventThread::onNewVsyncScheduleInternal(
     if (reschedule) {
         mVsyncRegistration.schedule({.workDuration = mWorkDuration.get().count(),
                                      .readyDuration = mReadyDuration.count(),
-                                     .earliestVsync = mLastVsyncCallbackTime.ns()});
+                                     .lastVsync = mLastVsyncCallbackTime.ns()});
     }
     return oldRegistration;
 }

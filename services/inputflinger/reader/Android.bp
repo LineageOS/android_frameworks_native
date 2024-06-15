@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_input_framework",
     // See: http://go/android-license-faq
     // A large-scale-change added 'default_applicable_licenses' to import
     // all of the 'license_kinds' from "frameworks_native_license"
@@ -86,6 +87,7 @@ cc_defaults {
         "liblog",
         "libPlatformProperties",
         "libstatslog",
+        "libstatspull",
         "libutils",
     ],
     static_libs: [
@@ -99,15 +101,9 @@ cc_defaults {
         "libinputreader_headers",
     ],
     target: {
-        android: {
-            shared_libs: [
-                "libstatspull",
-            ],
-        },
         host: {
             static_libs: [
                 "libbinder",
-                "libstatspull",
             ],
         },
     },

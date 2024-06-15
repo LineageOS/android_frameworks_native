@@ -46,6 +46,7 @@ import android.gui.LayerCaptureArgs;
 import android.gui.LayerDebugInfo;
 import android.gui.OverlayProperties;
 import android.gui.PullAtomData;
+import android.gui.ScreenCaptureResults;
 import android.gui.ARect;
 import android.gui.SchedulingPolicy;
 import android.gui.StalledTransactionInfo;
@@ -241,6 +242,16 @@ interface ISurfaceComposer {
      */
     oneway void captureDisplayById(long displayId, in CaptureArgs args,
             IScreenCaptureListener listener);
+
+    /**
+     * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
+     * This requires READ_FRAME_BUFFER permission. This function will fail if there
+     * is a secure window on screen. This is a blocking call and will return the
+     * ScreenCaptureResults, including the captured buffer. Because this is blocking, the
+     * caller doesn't care about the fence and the binder thread in SurfaceFlinger will wait
+     * on the fence to fire before returning the results.
+     */
+    ScreenCaptureResults captureLayersSync(in LayerCaptureArgs args);
 
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.

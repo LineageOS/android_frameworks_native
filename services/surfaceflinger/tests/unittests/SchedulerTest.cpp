@@ -95,16 +95,12 @@ protected:
                                                   kDisplay1Mode60->getId());
 
     mock::SchedulerCallback mSchedulerCallback;
-    mock::VsyncTrackerCallback mVsyncTrackerCallback;
-    TestableScheduler* mScheduler =
-            new TestableScheduler{mSelector, mSchedulerCallback, mVsyncTrackerCallback};
-    surfaceflinger::frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
+    TestableSurfaceFlinger mFlinger;
+    TestableScheduler* mScheduler = new TestableScheduler{mSelector, mFlinger, mSchedulerCallback};
+    surfaceflinger::frontend::LayerHierarchyBuilder mLayerHierarchyBuilder;
 
-    ConnectionHandle mConnectionHandle;
     MockEventThread* mEventThread;
     sp<MockEventThreadConnection> mEventThreadConnection;
-
-    TestableSurfaceFlinger mFlinger;
 };
 
 SchedulerTest::SchedulerTest() {
@@ -119,53 +115,12 @@ SchedulerTest::SchedulerTest() {
     EXPECT_CALL(*mEventThread, createEventConnection(_, _))
             .WillRepeatedly(Return(mEventThreadConnection));
 
-    mConnectionHandle = mScheduler->createConnection(std::move(eventThread));
-    EXPECT_TRUE(mConnectionHandle);
+    mScheduler->setEventThread(Cycle::Render, std::move(eventThread));
 
     mFlinger.resetScheduler(mScheduler);
 }
 
 } // namespace
-
-TEST_F(SchedulerTest, invalidConnectionHandle) {
-    ConnectionHandle handle;
-
-    const sp<IDisplayEventConnection> connection = mScheduler->createDisplayEventConnection(handle);
-
-    EXPECT_FALSE(connection);
-    EXPECT_FALSE(mScheduler->getEventConnection(handle));
-
-    // The EXPECT_CALLS make sure we don't call the functions on the subsequent event threads.
-    EXPECT_CALL(*mEventThread, onHotplugReceived(_, _)).Times(0);
-    mScheduler->onHotplugReceived(handle, kDisplayId1, false);
-
-    std::string output;
-    EXPECT_CALL(*mEventThread, dump(_)).Times(0);
-    mScheduler->dump(handle, output);
-    EXPECT_TRUE(output.empty());
-
-    EXPECT_CALL(*mEventThread, setDuration(10ns, 20ns)).Times(0);
-    mScheduler->setDuration(handle, 10ns, 20ns);
-}
-
-TEST_F(SchedulerTest, validConnectionHandle) {
-    const sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle);
-
-    ASSERT_EQ(mEventThreadConnection, connection);
-    EXPECT_TRUE(mScheduler->getEventConnection(mConnectionHandle));
-
-    EXPECT_CALL(*mEventThread, onHotplugReceived(kDisplayId1, false)).Times(1);
-    mScheduler->onHotplugReceived(mConnectionHandle, kDisplayId1, false);
-
-    std::string output("dump");
-    EXPECT_CALL(*mEventThread, dump(output)).Times(1);
-    mScheduler->dump(mConnectionHandle, output);
-    EXPECT_FALSE(output.empty());
-
-    EXPECT_CALL(*mEventThread, setDuration(10ns, 20ns)).Times(1);
-    mScheduler->setDuration(mConnectionHandle, 10ns, 20ns);
-}
 
 TEST_F(SchedulerTest, registerDisplay) FTL_FAKE_GUARD(kMainThreadContext) {
     // Hardware VSYNC should not change if the display is already registered.
@@ -236,22 +191,6 @@ TEST_F(SchedulerTest, dispatchCachedReportedMode) {
 
     EXPECT_CALL(*mEventThread, onModeChanged(_)).Times(0);
     EXPECT_NO_FATAL_FAILURE(mScheduler->dispatchCachedReportedMode());
-}
-
-TEST_F(SchedulerTest, onNonPrimaryDisplayModeChanged_invalidParameters) {
-    const auto mode = DisplayMode::Builder(hal::HWConfigId(0))
-                              .setId(DisplayModeId(111))
-                              .setPhysicalDisplayId(kDisplayId1)
-                              .setVsyncPeriod(111111)
-                              .build();
-
-    // If the handle is incorrect, the function should return before
-    // onModeChange is called.
-    ConnectionHandle invalidHandle = {.id = 123};
-    EXPECT_NO_FATAL_FAILURE(
-            mScheduler->onNonPrimaryDisplayModeChanged(invalidHandle,
-                                                       {90_Hz, ftl::as_non_null(mode)}));
-    EXPECT_CALL(*mEventThread, onModeChanged(_)).Times(0);
 }
 
 TEST_F(SchedulerTest, calculateMaxAcquiredBufferCount) {
@@ -340,6 +279,61 @@ TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
     choice = modeChoices.get(kDisplayId1);
     ASSERT_TRUE(choice);
     EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, globalSignals));
+}
+
+TEST_F(SchedulerTest, chooseDisplayModesSingleDisplayHighHintTouchSignal) {
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
+
+    using DisplayModeChoice = TestableScheduler::DisplayModeChoice;
+
+    std::vector<RefreshRateSelector::LayerRequirement> layers =
+            std::vector<RefreshRateSelector::LayerRequirement>({{.weight = 1.f}, {.weight = 1.f}});
+    auto& lr1 = layers[0];
+    auto& lr2 = layers[1];
+
+    // Scenario that is similar to game. Expects no touch boost.
+    lr1.vote = RefreshRateSelector::LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = RefreshRateSelector::LayerVoteType::ExplicitDefault;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitDefault";
+    mScheduler->setContentRequirements(layers);
+    auto modeChoices = mScheduler->chooseDisplayModes();
+    ASSERT_EQ(1u, modeChoices.size());
+    auto choice = modeChoices.get(kDisplayId1);
+    ASSERT_TRUE(choice);
+    EXPECT_EQ(choice->get(), DisplayModeChoice({60_Hz, kDisplay1Mode60}, {.touch = false}));
+
+    // Scenario that is similar to video playback and interaction. Expects touch boost.
+    lr1.vote = RefreshRateSelector::LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = RefreshRateSelector::LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitExactOrMultiple";
+    mScheduler->setContentRequirements(layers);
+    modeChoices = mScheduler->chooseDisplayModes();
+    ASSERT_EQ(1u, modeChoices.size());
+    choice = modeChoices.get(kDisplayId1);
+    ASSERT_TRUE(choice);
+    EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, {.touch = true}));
+
+    // Scenario with explicit category and HighHint. Expects touch boost.
+    lr1.vote = RefreshRateSelector::LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = RefreshRateSelector::LayerVoteType::ExplicitCategory;
+    lr2.frameRateCategory = FrameRateCategory::Low;
+    lr2.name = "ExplicitCategory Low";
+    mScheduler->setContentRequirements(layers);
+    modeChoices = mScheduler->chooseDisplayModes();
+    ASSERT_EQ(1u, modeChoices.size());
+    choice = modeChoices.get(kDisplayId1);
+    ASSERT_TRUE(choice);
+    EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, {.touch = true}));
 }
 
 TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
@@ -517,6 +511,7 @@ TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
         }
 
         void sample() override {}
+        void sendNotifyExpectedPresentHint(PhysicalDisplayId) override {}
     } compositor(*mScheduler);
 
     mScheduler->doFrameSignal(compositor, VsyncId(42));
@@ -569,32 +564,32 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
                                                         frameRate.getPeriodNsecs())}));
     std::shared_ptr<VSyncPredictor> vrrTracker =
             std::make_shared<VSyncPredictor>(kMode, kHistorySize, kMinimumSamplesForPrediction,
-                                             kOutlierTolerancePercent, mVsyncTrackerCallback);
+                                             kOutlierTolerancePercent);
     std::shared_ptr<RefreshRateSelector> vrrSelectorPtr =
             std::make_shared<RefreshRateSelector>(makeModes(kMode), kMode->getId());
     TestableScheduler scheduler{std::make_unique<android::mock::VsyncController>(),
                                 vrrTracker,
                                 vrrSelectorPtr,
-                                sp<VsyncModulator>::make(VsyncConfigSet{}),
-                                mSchedulerCallback,
-                                mVsyncTrackerCallback};
+                                mFlinger.getFactory(),
+                                mFlinger.getTimeStats(),
+                                mSchedulerCallback};
 
     scheduler.registerDisplay(kMode->getPhysicalDisplayId(), vrrSelectorPtr, vrrTracker);
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
     scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
     vrrTracker->addVsyncTimestamp(0);
 
-    // Next frame at refresh rate as no previous frame
-    EXPECT_EQ(refreshRate,
-              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(), TimePoint::fromNs(0)));
-
     EXPECT_EQ(Fps::fromPeriodNsecs(1000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(500)));
+                                             TimePoint::fromNs(1000)));
     EXPECT_EQ(Fps::fromPeriodNsecs(1000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(1500)));
+                                             TimePoint::fromNs(2000)));
 
+    // Not crossing the min frame period
+    EXPECT_EQ(Fps::fromPeriodNsecs(1500),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(2500)));
     // Change render rate
     frameRate = Fps::fromPeriodNsecs(2000);
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
@@ -602,10 +597,10 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
 
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(2500)));
+                                             TimePoint::fromNs(2000)));
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(4500)));
+                                             TimePoint::fromNs(4000)));
 }
 
 TEST_F(SchedulerTest, resyncAllToHardwareVsync) FTL_FAKE_GUARD(kMainThreadContext) {
@@ -700,7 +695,7 @@ TEST_F(AttachedChoreographerTest, registerSingle) {
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
     const sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, layer->getHandle());
 
     EXPECT_EQ(1u, mScheduler->mutableAttachedChoreographers().size());
     ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
@@ -729,9 +724,9 @@ TEST_F(AttachedChoreographerTest, registerMultipleOnSameLayer) {
             .WillOnce(Return(mockConnection2));
 
     const sp<IDisplayEventConnection> connection1 =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, handle);
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, handle);
     const sp<IDisplayEventConnection> connection2 =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, handle);
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, handle);
 
     EXPECT_EQ(1u, mScheduler->mutableAttachedChoreographers().size());
     ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
@@ -749,9 +744,9 @@ TEST_F(AttachedChoreographerTest, registerMultipleOnDifferentLayers) {
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached).Times(2);
     const sp<IDisplayEventConnection> connection1 =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer1->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, layer1->getHandle());
     const sp<IDisplayEventConnection> connection2 =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer2->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, layer2->getHandle());
 
     EXPECT_EQ(2u, mScheduler->mutableAttachedChoreographers().size());
 
@@ -778,7 +773,7 @@ TEST_F(AttachedChoreographerTest, removedWhenConnectionIsGone) {
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
 
     sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, layer->getHandle());
 
     ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
     EXPECT_EQ(1u,
@@ -808,7 +803,7 @@ TEST_F(AttachedChoreographerTest, removedWhenLayerIsGone) {
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
     const sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, layer->getHandle());
 
     layer.clear();
     mFlinger.mutableLayersPendingRemoval().clear();
@@ -822,7 +817,7 @@ void AttachedChoreographerTest::frameRateTestScenario(Fps layerFps, int8_t frame
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
     sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, layer->getHandle());
 
     RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
     LayerHierarchy hierarchy(&layerState);
@@ -882,7 +877,7 @@ TEST_F(AttachedChoreographerTest, setsFrameRateParent) {
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
     sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, parent->getHandle());
 
     RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
     LayerHierarchy parentHierarchy(&parentState);
@@ -909,7 +904,7 @@ TEST_F(AttachedChoreographerTest, setsFrameRateParent2Children) {
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
     sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, parent->getHandle());
 
     RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
     LayerHierarchy parentHierarchy(&parentState);
@@ -944,7 +939,7 @@ TEST_F(AttachedChoreographerTest, setsFrameRateParentConflictingChildren) {
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
     sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, parent->getHandle());
 
     RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
     LayerHierarchy parentHierarchy(&parentState);
@@ -978,7 +973,7 @@ TEST_F(AttachedChoreographerTest, setsFrameRateChild) {
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
     sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, layer->getHandle());
 
     RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
     LayerHierarchy parentHierarchy(&parentState);
@@ -1004,7 +999,7 @@ TEST_F(AttachedChoreographerTest, setsFrameRateChildNotOverriddenByParent) {
 
     EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
     sp<IDisplayEventConnection> connection =
-            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+            mScheduler->createDisplayEventConnection(Cycle::Render, {}, layer->getHandle());
 
     RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
     LayerHierarchy parentHierarchy(&parentState);

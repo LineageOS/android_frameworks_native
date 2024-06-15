@@ -89,6 +89,9 @@ static const char* hidl_hal_interfaces_to_dump[] {
 
 /* list of hal interface to dump containing process during native dumps */
 static const std::vector<std::string> aidl_interfaces_to_dump {
+        "android.hardware.audio.core.IConfig",
+        "android.hardware.audio.core.IModule",
+        "android.hardware.audio.effect.IFactory",
         "android.hardware.automotive.audiocontrol.IAudioControl",
         "android.hardware.automotive.can.ICanController",
         "android.hardware.automotive.evs.IEvsEnumerator",
