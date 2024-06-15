@@ -8577,6 +8577,8 @@ public:
         // Set focus to second display window.
         // Set focus display to second one.
         mDispatcher->setFocusedDisplay(SECOND_DISPLAY_ID);
+        mFakePolicy->assertFocusedDisplayNotified(SECOND_DISPLAY_ID);
+
         // Set focus window for second display.
         mDispatcher->setFocusedApplication(SECOND_DISPLAY_ID, application2);
         windowInSecondary->setFocusable(true);
@@ -11066,6 +11068,7 @@ TEST_F(InputDispatcherPointerCaptureTests, MultiDisplayPointerCapture) {
 
     // Make the second display the focused display.
     mDispatcher->setFocusedDisplay(SECOND_DISPLAY_ID);
+    mFakePolicy->assertFocusedDisplayNotified(SECOND_DISPLAY_ID);
 
     // This causes the first window to lose pointer capture, and it's unable to request capture.
     mWindow->consumeCaptureEvent(false);
@@ -13767,6 +13770,11 @@ TEST_F(InputDispatcherPointerInWindowTest, MultipleDevicesControllingOneMouse) {
     ASSERT_FALSE(mDispatcher->isPointerInWindow(left->getToken(), ui::LogicalDisplayId::DEFAULT,
                                                 SECOND_DEVICE_ID,
                                                 /*pointerId=*/0));
+}
+
+TEST_F(InputDispatcherTest, FocusedDisplayChangeIsNotified) {
+    mDispatcher->setFocusedDisplay(SECOND_DISPLAY_ID);
+    mFakePolicy->assertFocusedDisplayNotified(SECOND_DISPLAY_ID);
 }
 
 } // namespace android::inputdispatcher

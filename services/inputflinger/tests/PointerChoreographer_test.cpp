@@ -2294,6 +2294,185 @@ TEST_F(PointerChoreographerTest, MouseAndDrawingTabletReportMouseEvents) {
     assertPointerControllerRemoved(pc);
 }
 
+class PointerVisibilityOnKeyPressTest : public PointerChoreographerTest {
+protected:
+    const std::unordered_map<int32_t, int32_t>
+            mMetaKeyStates{{AKEYCODE_ALT_LEFT, AMETA_ALT_LEFT_ON},
+                           {AKEYCODE_ALT_RIGHT, AMETA_ALT_RIGHT_ON},
+                           {AKEYCODE_SHIFT_LEFT, AMETA_SHIFT_LEFT_ON},
+                           {AKEYCODE_SHIFT_RIGHT, AMETA_SHIFT_RIGHT_ON},
+                           {AKEYCODE_SYM, AMETA_SYM_ON},
+                           {AKEYCODE_FUNCTION, AMETA_FUNCTION_ON},
+                           {AKEYCODE_CTRL_LEFT, AMETA_CTRL_LEFT_ON},
+                           {AKEYCODE_CTRL_RIGHT, AMETA_CTRL_RIGHT_ON},
+                           {AKEYCODE_META_LEFT, AMETA_META_LEFT_ON},
+                           {AKEYCODE_META_RIGHT, AMETA_META_RIGHT_ON},
+                           {AKEYCODE_CAPS_LOCK, AMETA_CAPS_LOCK_ON},
+                           {AKEYCODE_NUM_LOCK, AMETA_NUM_LOCK_ON},
+                           {AKEYCODE_SCROLL_LOCK, AMETA_SCROLL_LOCK_ON}};
+
+    void notifyKey(ui::LogicalDisplayId targetDisplay, int32_t keyCode,
+                   int32_t metaState = AMETA_NONE) {
+        if (metaState == AMETA_NONE && mMetaKeyStates.contains(keyCode)) {
+            // For simplicity, we always set the corresponding meta state when sending a meta
+            // keycode. This does not take into consideration when the meta state is updated in
+            // reality.
+            metaState = mMetaKeyStates.at(keyCode);
+        }
+        mChoreographer.notifyKey(KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD)
+                                         .displayId(targetDisplay)
+                                         .keyCode(keyCode)
+                                         .metaState(metaState)
+                                         .build());
+        mChoreographer.notifyKey(KeyArgsBuilder(AKEY_EVENT_ACTION_UP, AINPUT_SOURCE_KEYBOARD)
+                                         .displayId(targetDisplay)
+                                         .keyCode(keyCode)
+                                         .metaState(metaState)
+                                         .build());
+    }
+
+    void metaKeyCombinationHidesPointer(FakePointerController& pc, int32_t keyCode,
+                                        int32_t metaKeyCode) {
+        ASSERT_TRUE(pc.isPointerShown());
+        notifyKey(DISPLAY_ID, keyCode, mMetaKeyStates.at(metaKeyCode));
+        ASSERT_FALSE(pc.isPointerShown());
+
+        unfadePointer();
+    }
+
+    void metaKeyCombinationDoesNotHidePointer(FakePointerController& pc, int32_t keyCode,
+                                              int32_t metaKeyCode) {
+        ASSERT_TRUE(pc.isPointerShown());
+        notifyKey(DISPLAY_ID, keyCode, mMetaKeyStates.at(metaKeyCode));
+        ASSERT_TRUE(pc.isPointerShown());
+    }
+
+    void unfadePointer() {
+        // unfade pointer by injecting mose hover event
+        mChoreographer.notifyMotion(
+                MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                        .pointer(MOUSE_POINTER)
+                        .deviceId(DEVICE_ID)
+                        .displayId(DISPLAY_ID)
+                        .build());
+    }
+};
+
+TEST_F(PointerVisibilityOnKeyPressTest, KeystrokesWithoutImeConnectionDoesNotHidePointer) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+
+    // Mouse connected
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    notifyKey(ui::LogicalDisplayId::INVALID, AKEYCODE_0);
+    notifyKey(ui::LogicalDisplayId::INVALID, AKEYCODE_A);
+    notifyKey(ui::LogicalDisplayId::INVALID, AKEYCODE_CTRL_LEFT);
+
+    ASSERT_TRUE(pc->isPointerShown());
+}
+
+TEST_F(PointerVisibilityOnKeyPressTest, AlphanumericKeystrokesWithImeConnectionHidePointer) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+
+    // Mouse connected
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    EXPECT_CALL(mMockPolicy, isInputMethodConnectionActive).WillRepeatedly(testing::Return(true));
+
+    notifyKey(DISPLAY_ID, AKEYCODE_0);
+    ASSERT_FALSE(pc->isPointerShown());
+
+    unfadePointer();
+
+    notifyKey(DISPLAY_ID, AKEYCODE_A);
+    ASSERT_FALSE(pc->isPointerShown());
+}
+
+TEST_F(PointerVisibilityOnKeyPressTest, MetaKeystrokesDoNotHidePointer) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+
+    // Mouse connected
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    EXPECT_CALL(mMockPolicy, isInputMethodConnectionActive).WillRepeatedly(testing::Return(true));
+
+    const std::vector<int32_t> metaKeyCodes{AKEYCODE_ALT_LEFT,   AKEYCODE_ALT_RIGHT,
+                                            AKEYCODE_SHIFT_LEFT, AKEYCODE_SHIFT_RIGHT,
+                                            AKEYCODE_SYM,        AKEYCODE_FUNCTION,
+                                            AKEYCODE_CTRL_LEFT,  AKEYCODE_CTRL_RIGHT,
+                                            AKEYCODE_META_LEFT,  AKEYCODE_META_RIGHT,
+                                            AKEYCODE_CAPS_LOCK,  AKEYCODE_NUM_LOCK,
+                                            AKEYCODE_SCROLL_LOCK};
+    for (int32_t keyCode : metaKeyCodes) {
+        notifyKey(ui::LogicalDisplayId::INVALID, keyCode);
+    }
+
+    ASSERT_TRUE(pc->isPointerShown());
+}
+
+TEST_F(PointerVisibilityOnKeyPressTest, KeystrokesWithoutTargetHidePointerOnlyOnFocusedDisplay) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
+    mChoreographer.setFocusedDisplay(DISPLAY_ID);
+
+    // Mouse connected
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ANOTHER_DISPLAY_ID)}});
+    auto pc1 = assertPointerControllerCreated(ControllerType::MOUSE);
+    auto pc2 = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc1->isPointerShown());
+    ASSERT_TRUE(pc2->isPointerShown());
+
+    EXPECT_CALL(mMockPolicy, isInputMethodConnectionActive).WillRepeatedly(testing::Return(true));
+
+    notifyKey(ui::LogicalDisplayId::INVALID, AKEYCODE_0);
+    ASSERT_FALSE(pc1->isPointerShown());
+    ASSERT_TRUE(pc2->isPointerShown());
+    unfadePointer();
+
+    notifyKey(ui::LogicalDisplayId::INVALID, AKEYCODE_A);
+    ASSERT_FALSE(pc1->isPointerShown());
+    ASSERT_TRUE(pc2->isPointerShown());
+}
+
+TEST_F(PointerVisibilityOnKeyPressTest, TestMetaKeyCombinations) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+
+    // Mouse connected
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    EXPECT_CALL(mMockPolicy, isInputMethodConnectionActive).WillRepeatedly(testing::Return(true));
+
+    // meta key combinations that should hide pointer
+    metaKeyCombinationHidesPointer(*pc, AKEYCODE_A, AKEYCODE_SHIFT_LEFT);
+    metaKeyCombinationHidesPointer(*pc, AKEYCODE_A, AKEYCODE_SHIFT_RIGHT);
+    metaKeyCombinationHidesPointer(*pc, AKEYCODE_A, AKEYCODE_CAPS_LOCK);
+    metaKeyCombinationHidesPointer(*pc, AKEYCODE_0, AKEYCODE_NUM_LOCK);
+    metaKeyCombinationHidesPointer(*pc, AKEYCODE_A, AKEYCODE_SCROLL_LOCK);
+
+    // meta key combinations that should not hide pointer
+    metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_ALT_LEFT);
+    metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_ALT_RIGHT);
+    metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_CTRL_LEFT);
+    metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_CTRL_RIGHT);
+    metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_SYM);
+    metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_FUNCTION);
+    metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_META_LEFT);
+    metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_META_RIGHT);
+}
+
 class PointerChoreographerWindowInfoListenerTest : public testing::Test {};
 
 TEST_F_WITH_FLAGS(

@@ -219,6 +219,24 @@ void FakeInputDispatcherPolicy::setConsumeKeyBeforeDispatching(bool consumeKeyBe
     mConsumeKeyBeforeDispatching = consumeKeyBeforeDispatching;
 }
 
+void FakeInputDispatcherPolicy::assertFocusedDisplayNotified(ui::LogicalDisplayId expectedDisplay) {
+    std::unique_lock lock(mLock);
+    base::ScopedLockAssertion assumeLocked(mLock);
+
+    if (!mFocusedDisplayNotifiedCondition.wait_for(lock, 100ms,
+                                                   [this, expectedDisplay]() REQUIRES(mLock) {
+                                                       if (!mNotifiedFocusedDisplay.has_value() ||
+                                                           mNotifiedFocusedDisplay.value() !=
+                                                                   expectedDisplay) {
+                                                           return false;
+                                                       }
+                                                       return true;
+                                                   })) {
+        ADD_FAILURE() << "Timed out waiting for notifyFocusedDisplayChanged(" << expectedDisplay
+                      << ") to be called.";
+    }
+}
+
 void FakeInputDispatcherPolicy::assertUserActivityNotPoked() {
     std::unique_lock lock(mLock);
     base::ScopedLockAssertion assumeLocked(mLock);
@@ -471,6 +489,12 @@ void FakeInputDispatcherPolicy::assertFilterInputEventWasCalledInternal(
     ASSERT_NE(nullptr, mFilteredEvent) << "Expected filterInputEvent() to have been called.";
     verify(*mFilteredEvent);
     mFilteredEvent = nullptr;
+}
+
+void FakeInputDispatcherPolicy::notifyFocusedDisplayChanged(ui::LogicalDisplayId displayId) {
+    std::scoped_lock lock(mLock);
+    mNotifiedFocusedDisplay = displayId;
+    mFocusedDisplayNotifiedCondition.notify_all();
 }
 
 } // namespace android

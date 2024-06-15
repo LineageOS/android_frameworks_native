@@ -55,6 +55,9 @@ public:
      */
     virtual void notifyPointerDisplayIdChanged(ui::LogicalDisplayId displayId,
                                                const FloatPoint& position) = 0;
+
+    /* Returns true if any InputConnection is currently active. */
+    virtual bool isInputMethodConnectionActive() = 0;
 };
 
 } // namespace android
