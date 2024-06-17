@@ -1118,8 +1118,8 @@ public:
                 if (mFlinger.scheduler() && mSchedulerRegistration) {
                     mFlinger.scheduler()->registerDisplay(*physicalId,
                                                           mCreationArgs.refreshRateSelector,
-                                                          std::move(controller),
-                                                          std::move(tracker));
+                                                          std::move(controller), std::move(tracker),
+                                                          mFlinger.mutableActiveDisplayId());
                 }
             }
 
