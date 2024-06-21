@@ -3855,7 +3855,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         ftl::FakeGuard guard(kMainThreadContext);
 
         // For hotplug reconnect, renew the registration since display modes have been reloaded.
-        mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
+        mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector(),
+                                    mActiveDisplayId);
     }
 
     if (display->isVirtual()) {
@@ -3894,7 +3895,7 @@ void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
         if (display->isVirtual()) {
             releaseVirtualDisplay(display->getVirtualId());
         } else {
-            mScheduler->unregisterDisplay(display->getPhysicalId());
+            mScheduler->unregisterDisplay(display->getPhysicalId(), mActiveDisplayId);
         }
     }
 
@@ -4506,7 +4507,8 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
                                              getFactory(), activeRefreshRate, *mTimeStats);
 
     // The pacesetter must be registered before EventThread creation below.
-    mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
+    mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector(),
+                                mActiveDisplayId);
     if (FlagManager::getInstance().vrr_config()) {
         mScheduler->setRenderRate(display->getPhysicalId(), activeMode.fps,
                                   /*applyImmediately*/ true);
