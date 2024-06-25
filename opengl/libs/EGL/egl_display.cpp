@@ -383,6 +383,14 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
         // before using cnx->major & cnx->minor
         if (major != nullptr) *major = cnx->major;
         if (minor != nullptr) *minor = cnx->minor;
+        auto mergeExtensionStrings = [](const std::vector<std::string>& strings) {
+            std::ostringstream combinedStringStream;
+            std::copy(strings.begin(), strings.end(),
+                      std::ostream_iterator<std::string>(combinedStringStream, " "));
+            // gBuiltinExtensionString already has a trailing space so is added here
+            return gBuiltinExtensionString + combinedStringStream.str();
+        };
+        mExtensionString = mergeExtensionStrings(extensionStrings);
     }
 
     { // scope for refLock
@@ -391,14 +399,6 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
         refCond.notify_all();
     }
 
-    auto mergeExtensionStrings = [](const std::vector<std::string>& strings) {
-        std::ostringstream combinedStringStream;
-        std::copy(strings.begin(), strings.end(),
-                  std::ostream_iterator<std::string>(combinedStringStream, " "));
-        // gBuiltinExtensionString already has a trailing space so is added here
-        return gBuiltinExtensionString + combinedStringStream.str();
-    };
-    mExtensionString = mergeExtensionStrings(extensionStrings);
     return EGL_TRUE;
 }
 
