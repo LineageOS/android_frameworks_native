@@ -36,50 +36,34 @@ struct RenderAreaBuilder {
     // Composition data space of the render area
     ui::Dataspace reqDataSpace;
 
-    // If true, the secure layer would be blacked out or skipped
-    // when rendered to an insecure render area
-    bool allowSecureLayers;
-
-    // If true, the render result may be used for system animations
-    // that must preserve the exact colors of the display
-    bool hintForSeamlessTransition;
-
+    ftl::Flags<RenderArea::Options> options;
     virtual std::unique_ptr<RenderArea> build() const = 0;
 
     RenderAreaBuilder(Rect crop, ui::Size reqSize, ui::Dataspace reqDataSpace,
-                      bool allowSecureLayers, bool hintForSeamlessTransition)
-          : crop(crop),
-            reqSize(reqSize),
-            reqDataSpace(reqDataSpace),
-            allowSecureLayers(allowSecureLayers),
-            hintForSeamlessTransition(hintForSeamlessTransition) {}
+                      ftl::Flags<RenderArea::Options> options)
+          : crop(crop), reqSize(reqSize), reqDataSpace(reqDataSpace), options(options) {}
 
     virtual ~RenderAreaBuilder() = default;
 };
 
 struct DisplayRenderAreaBuilder : RenderAreaBuilder {
     DisplayRenderAreaBuilder(Rect crop, ui::Size reqSize, ui::Dataspace reqDataSpace,
-                             bool allowSecureLayers, bool hintForSeamlessTransition,
-                             wp<const DisplayDevice> displayWeak)
-          : RenderAreaBuilder(crop, reqSize, reqDataSpace, allowSecureLayers,
-                              hintForSeamlessTransition),
-            displayWeak(displayWeak) {}
+                             wp<const DisplayDevice> displayWeak,
+                             ftl::Flags<RenderArea::Options> options)
+          : RenderAreaBuilder(crop, reqSize, reqDataSpace, options), displayWeak(displayWeak) {}
 
     // Display that render area will be on
     wp<const DisplayDevice> displayWeak;
 
     std::unique_ptr<RenderArea> build() const override {
-        return DisplayRenderArea::create(displayWeak, crop, reqSize, reqDataSpace,
-                                         hintForSeamlessTransition, allowSecureLayers);
+        return DisplayRenderArea::create(displayWeak, crop, reqSize, reqDataSpace, options);
     }
 };
 
 struct LayerRenderAreaBuilder : RenderAreaBuilder {
-    LayerRenderAreaBuilder(Rect crop, ui::Size reqSize, ui::Dataspace reqDataSpace,
-                           bool allowSecureLayers, bool hintForSeamlessTransition, sp<Layer> layer,
-                           bool childrenOnly)
-          : RenderAreaBuilder(crop, reqSize, reqDataSpace, allowSecureLayers,
-                              hintForSeamlessTransition),
+    LayerRenderAreaBuilder(Rect crop, ui::Size reqSize, ui::Dataspace reqDataSpace, sp<Layer> layer,
+                           bool childrenOnly, ftl::Flags<RenderArea::Options> options)
+          : RenderAreaBuilder(crop, reqSize, reqDataSpace, options),
             layer(layer),
             childrenOnly(childrenOnly) {}
 
@@ -110,8 +94,8 @@ struct LayerRenderAreaBuilder : RenderAreaBuilder {
 
     std::unique_ptr<RenderArea> build() const override {
         return std::make_unique<LayerRenderArea>(layer, std::move(layerSnapshot), crop, reqSize,
-                                                 reqDataSpace, allowSecureLayers, layerTransform,
-                                                 layerBufferSize, hintForSeamlessTransition);
+                                                 reqDataSpace, layerTransform, layerBufferSize,
+                                                 options);
     }
 };
 

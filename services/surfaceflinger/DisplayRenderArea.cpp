@@ -22,22 +22,20 @@ namespace android {
 std::unique_ptr<RenderArea> DisplayRenderArea::create(wp<const DisplayDevice> displayWeak,
                                                       const Rect& sourceCrop, ui::Size reqSize,
                                                       ui::Dataspace reqDataSpace,
-                                                      bool hintForSeamlessTransition,
-                                                      bool allowSecureLayers) {
+                                                      ftl::Flags<Options> options) {
     if (auto display = displayWeak.promote()) {
         // Using new to access a private constructor.
-        return std::unique_ptr<DisplayRenderArea>(
-                new DisplayRenderArea(std::move(display), sourceCrop, reqSize, reqDataSpace,
-                                      hintForSeamlessTransition, allowSecureLayers));
+        return std::unique_ptr<DisplayRenderArea>(new DisplayRenderArea(std::move(display),
+                                                                        sourceCrop, reqSize,
+                                                                        reqDataSpace, options));
     }
     return nullptr;
 }
 
 DisplayRenderArea::DisplayRenderArea(sp<const DisplayDevice> display, const Rect& sourceCrop,
                                      ui::Size reqSize, ui::Dataspace reqDataSpace,
-                                     bool hintForSeamlessTransition, bool allowSecureLayers)
-      : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, hintForSeamlessTransition,
-                   allowSecureLayers),
+                                     ftl::Flags<Options> options)
+      : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, options),
         mDisplay(std::move(display)),
         mSourceCrop(sourceCrop) {}
 
@@ -46,7 +44,7 @@ const ui::Transform& DisplayRenderArea::getTransform() const {
 }
 
 bool DisplayRenderArea::isSecure() const {
-    return mAllowSecureLayers && mDisplay->isSecure();
+    return mOptions.test(Options::CAPTURE_SECURE_LAYERS) && mDisplay->isSecure();
 }
 
 sp<const DisplayDevice> DisplayRenderArea::getDisplayDevice() const {
