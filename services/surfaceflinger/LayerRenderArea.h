@@ -33,9 +33,9 @@ class SurfaceFlinger;
 class LayerRenderArea : public RenderArea {
 public:
     LayerRenderArea(sp<Layer> layer, frontend::LayerSnapshot layerSnapshot, const Rect& crop,
-                    ui::Size reqSize, ui::Dataspace reqDataSpace, bool allowSecureLayers,
+                    ui::Size reqSize, ui::Dataspace reqDataSpace,
                     const ui::Transform& layerTransform, const Rect& layerBufferSize,
-                    bool hintForSeamlessTransition);
+                    ftl::Flags<RenderArea::Options> options);
 
     const ui::Transform& getTransform() const override;
     bool isSecure() const override;

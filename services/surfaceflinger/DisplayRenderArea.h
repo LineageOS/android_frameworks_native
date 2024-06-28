@@ -29,8 +29,7 @@ class DisplayRenderArea : public RenderArea {
 public:
     static std::unique_ptr<RenderArea> create(wp<const DisplayDevice>, const Rect& sourceCrop,
                                               ui::Size reqSize, ui::Dataspace,
-                                              bool hintForSeamlessTransition,
-                                              bool allowSecureLayers = true);
+                                              ftl::Flags<Options> options);
 
     const ui::Transform& getTransform() const override;
     bool isSecure() const override;
@@ -39,7 +38,7 @@ public:
 
 private:
     DisplayRenderArea(sp<const DisplayDevice>, const Rect& sourceCrop, ui::Size reqSize,
-                      ui::Dataspace, bool hintForSeamlessTransition, bool allowSecureLayers = true);
+                      ui::Dataspace, ftl::Flags<Options> options);
 
     const sp<const DisplayDevice> mDisplay;
     const Rect mSourceCrop;

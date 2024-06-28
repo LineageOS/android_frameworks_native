@@ -70,6 +70,7 @@ using testing::SetArgPointee;
 
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjector;
+using namespace ftl::flag_operators;
 
 constexpr hal::HWDisplayId HWC_DISPLAY = FakeHwcDisplayInjector::DEFAULT_HWC_DISPLAY_ID;
 constexpr hal::HWLayerId HWC_LAYER = 5000;
@@ -197,8 +198,11 @@ void CompositionTest::captureScreenComposition() {
     const Rect sourceCrop(0, 0, DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT);
     constexpr bool regionSampling = false;
 
-    auto renderArea = DisplayRenderArea::create(mDisplay, sourceCrop, sourceCrop.getSize(),
-                                                ui::Dataspace::V0_SRGB, true, true);
+    auto renderArea =
+            DisplayRenderArea::create(mDisplay, sourceCrop, sourceCrop.getSize(),
+                                      ui::Dataspace::V0_SRGB,
+                                      RenderArea::Options::CAPTURE_SECURE_LAYERS |
+                                              RenderArea::Options::HINT_FOR_SEAMLESS_TRANSITION);
 
     auto traverseLayers = [this](const LayerVector::Visitor& visitor) {
         return mFlinger.traverseLayersInLayerStack(mDisplay->getLayerStack(),
