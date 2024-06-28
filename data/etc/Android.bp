@@ -376,6 +376,14 @@ prebuilt_etc {
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
+// installed in system for GSI
+prebuilt_etc {
+    name: "android.software.credentials.prebuilt.xml",
+    relative_install_path: "permissions",
+    src: "android.software.credentials.xml",
+    filename_from_src: true,
+}
+
 prebuilt_etc {
     name: "android.software.device_id_attestation.prebuilt.xml",
     src: "android.software.device_id_attestation.xml",
