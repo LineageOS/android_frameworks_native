@@ -8194,7 +8194,7 @@ void SurfaceFlinger::captureScreenCommon(RenderAreaBuilderVariant renderAreaBuil
     }
 
     if (FlagManager::getInstance().single_hop_screenshot() &&
-        FlagManager::getInstance().ce_fence_promise()) {
+        FlagManager::getInstance().ce_fence_promise() && mRenderEngine->isThreaded()) {
         std::vector<sp<LayerFE>> layerFEs;
         auto displayState =
                 getDisplayAndLayerSnapshotsFromMainThread(renderAreaBuilder, getLayerSnapshotsFn,
@@ -8568,10 +8568,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     // to CompositionEngine::present.
     ftl::SharedFuture<FenceResult> presentFuture;
     if (FlagManager::getInstance().single_hop_screenshot() &&
-        FlagManager::getInstance().ce_fence_promise()) {
-        presentFuture = mRenderEngine->isThreaded()
-                ? ftl::yield(present()).share()
-                : mScheduler->schedule(std::move(present)).share();
+        FlagManager::getInstance().ce_fence_promise() && mRenderEngine->isThreaded()) {
+        presentFuture = ftl::yield(present()).share();
     } else {
         presentFuture = mRenderEngine->isThreaded() ? ftl::defer(std::move(present)).share()
                                                     : ftl::yield(present()).share();
