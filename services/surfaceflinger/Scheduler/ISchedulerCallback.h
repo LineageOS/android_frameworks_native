@@ -33,6 +33,7 @@ struct ISchedulerCallback {
     virtual void onExpectedPresentTimePosted(TimePoint, ftl::NonNull<DisplayModePtr>,
                                              Fps renderRate) = 0;
     virtual void onCommitNotComposited(PhysicalDisplayId pacesetterDisplayId) = 0;
+    virtual void vrrDisplayIdle(bool idle) = 0;
 
 protected:
     ~ISchedulerCallback() = default;

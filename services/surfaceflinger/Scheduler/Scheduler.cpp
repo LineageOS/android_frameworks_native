@@ -942,8 +942,9 @@ std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
                 {.platform = {.onReset = [this] { idleTimerCallback(TimerState::Reset); },
                               .onExpired = [this] { idleTimerCallback(TimerState::Expired); }},
                  .kernel = {.onReset = [this] { kernelIdleTimerCallback(TimerState::Reset); },
-                            .onExpired =
-                                    [this] { kernelIdleTimerCallback(TimerState::Expired); }}});
+                            .onExpired = [this] { kernelIdleTimerCallback(TimerState::Expired); }},
+                 .vrr = {.onReset = [this] { mSchedulerCallback.vrrDisplayIdle(false); },
+                         .onExpired = [this] { mSchedulerCallback.vrrDisplayIdle(true); }}});
 
         pacesetter.selectorPtr->startIdleTimer();
 

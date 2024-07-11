@@ -7703,6 +7703,22 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
     }));
 }
 
+void SurfaceFlinger::vrrDisplayIdle(bool idle) {
+    // Update the overlay on the main thread to avoid race conditions with
+    // RefreshRateSelector::getActiveMode
+    static_cast<void>(mScheduler->schedule([=, this] {
+        const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
+        if (!display) {
+            ALOGW("%s: default display is null", __func__);
+            return;
+        }
+        if (!display->isRefreshRateOverlayEnabled()) return;
+
+        display->onVrrIdle(idle);
+        mScheduler->scheduleFrame();
+    }));
+}
+
 std::pair<std::optional<KernelIdleTimerController>, std::chrono::milliseconds>
 SurfaceFlinger::getKernelIdleTimerProperties(PhysicalDisplayId displayId) {
     const bool isKernelIdleTimerHwcSupported = getHwComposer().getComposer()->isSupported(
