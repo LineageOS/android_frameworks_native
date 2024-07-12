@@ -117,10 +117,10 @@ void Scheduler::startTimers() {
     }
 }
 
-void Scheduler::setPacesetterDisplay(std::optional<PhysicalDisplayId> pacesetterIdOpt) {
+void Scheduler::setPacesetterDisplay(PhysicalDisplayId pacesetterId) {
     demotePacesetterDisplay();
 
-    promotePacesetterDisplay(pacesetterIdOpt);
+    promotePacesetterDisplay(pacesetterId);
 }
 
 void Scheduler::registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,
@@ -917,22 +917,22 @@ bool Scheduler::updateFrameRateOverridesLocked(GlobalSignals consideredSignals,
     return mFrameRateOverrideMappings.updateFrameRateOverridesByContent(frameRateOverrides);
 }
 
-void Scheduler::promotePacesetterDisplay(std::optional<PhysicalDisplayId> pacesetterIdOpt) {
+void Scheduler::promotePacesetterDisplay(PhysicalDisplayId pacesetterId) {
     std::shared_ptr<VsyncSchedule> pacesetterVsyncSchedule;
 
     {
         std::scoped_lock lock(mDisplayLock);
-        pacesetterVsyncSchedule = promotePacesetterDisplayLocked(pacesetterIdOpt);
+        pacesetterVsyncSchedule = promotePacesetterDisplayLocked(pacesetterId);
     }
 
     applyNewVsyncSchedule(std::move(pacesetterVsyncSchedule));
 }
 
 std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
-        std::optional<PhysicalDisplayId> pacesetterIdOpt) {
-    // TODO(b/241286431): Choose the pacesetter display.
-    mPacesetterDisplayId = pacesetterIdOpt.value_or(mDisplays.begin()->first);
-    ALOGI("Display %s is the pacesetter", to_string(*mPacesetterDisplayId).c_str());
+        PhysicalDisplayId pacesetterId) {
+    // TODO: b/241286431 - Choose the pacesetter among mDisplays.
+    mPacesetterDisplayId = pacesetterId;
+    ALOGI("Display %s is the pacesetter", to_string(pacesetterId).c_str());
 
     std::shared_ptr<VsyncSchedule> newVsyncSchedulePtr;
     if (const auto pacesetterOpt = pacesetterDisplayLocked()) {
