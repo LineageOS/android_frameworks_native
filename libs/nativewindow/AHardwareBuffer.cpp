@@ -300,7 +300,9 @@ int AHardwareBuffer_lockPlanes(AHardwareBuffer* buffer, uint64_t usage,
       if (result == 0) {
         outPlanes->planeCount = 3;
         outPlanes->planes[0].data = yuvData.y;
-        if (format == AHARDWAREBUFFER_FORMAT_YCbCr_P010) {
+        // P010 is word-aligned 10-bit semiplaner, and YCbCr_422_I is a single interleaved plane
+        if (format == AHARDWAREBUFFER_FORMAT_YCbCr_P010 ||
+            format == AHARDWAREBUFFER_FORMAT_YCbCr_422_I) {
             outPlanes->planes[0].pixelStride = 2;
         } else {
             outPlanes->planes[0].pixelStride = 1;
