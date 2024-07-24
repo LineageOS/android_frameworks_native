@@ -505,7 +505,7 @@ public:
 
     auto setTransactionState(
             const FrameTimelineInfo& frameTimelineInfo, Vector<ComposerState>& states,
-            const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
+            Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
             const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
             bool isAutoTimestamp, const std::vector<client_cache_t>& uncacheBuffers,
             bool hasListenerCallbacks, std::vector<ListenerCallbacks>& listenerCallbacks,

@@ -113,7 +113,7 @@ public:
     /* open/close transactions. requires ACCESS_SURFACE_FLINGER permission */
     virtual status_t setTransactionState(
             const FrameTimelineInfo& frameTimelineInfo, Vector<ComposerState>& state,
-            const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
+            Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
             InputWindowCommands inputWindowCommands, int64_t desiredPresentTime,
             bool isAutoTimestamp, const std::vector<client_cache_t>& uncacheBuffer,
             bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,

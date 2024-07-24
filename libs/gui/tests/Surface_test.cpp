@@ -636,7 +636,7 @@ public:
 
     status_t setTransactionState(
             const FrameTimelineInfo& /*frameTimelineInfo*/, Vector<ComposerState>& /*state*/,
-            const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
+            Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
             const sp<IBinder>& /*applyToken*/, InputWindowCommands /*inputWindowCommands*/,
             int64_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
             const std::vector<client_cache_t>& /*cachedBuffer*/, bool /*hasListenerCallbacks*/,
