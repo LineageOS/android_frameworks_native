@@ -5059,7 +5059,7 @@ status_t SurfaceFlinger::setTransactionState(
     const int originPid = ipc->getCallingPid();
     const int originUid = ipc->getCallingUid();
     uint32_t permissions = LayerStatePermissions::getTransactionPermissions(originPid, originUid);
-    for (auto composerState : states) {
+    for (auto& composerState : states) {
         composerState.state.sanitize(permissions);
     }
 
