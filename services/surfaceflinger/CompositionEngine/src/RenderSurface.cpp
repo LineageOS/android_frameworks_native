@@ -16,6 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android/native_window.h>
 #include <compositionengine/CompositionEngine.h>
@@ -78,12 +79,22 @@ bool RenderSurface::isValid() const {
     return mSize.isValid();
 }
 
+constexpr auto kPropNativeWindowBuffersFormat =
+    "ro.surface_flinger.native_window_buffers_format";
+
+int getNativeWindowBuffersFormat(void) {
+    int propval = android::base::GetIntProperty(kPropNativeWindowBuffersFormat, 0);
+    if (propval > 0)
+        return propval;
+    return HAL_PIXEL_FORMAT_RGBA_8888;
+}
+
 void RenderSurface::initialize() {
     ANativeWindow* const window = mNativeWindow.get();
 
     int status = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
     ALOGE_IF(status != NO_ERROR, "Unable to connect BQ producer: %d", status);
-    status = native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
+    status = native_window_set_buffers_format(window, getNativeWindowBuffersFormat());
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ format to RGBA888: %d", status);
     status = native_window_set_usage(window, DEFAULT_USAGE);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for GPU rendering: %d", status);
