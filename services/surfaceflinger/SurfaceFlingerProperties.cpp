@@ -88,6 +88,14 @@ int32_t max_graphics_height(int32_t defaultValue) {
     return defaultValue;
 }
 
+int32_t native_window_buffers_format(int32_t defaultValue) {
+    auto temp = SurfaceFlingerProperties::native_window_buffers_format();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 bool has_wide_color_display(bool defaultValue) {
     auto temp = SurfaceFlingerProperties::has_wide_color_display();
     if (temp.has_value()) {

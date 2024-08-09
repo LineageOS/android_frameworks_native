@@ -107,6 +107,11 @@ props {
     prop_name: "ro.surface_flinger.min_acquired_buffers"
   }
   prop {
+    api_name: "native_window_buffers_format"
+    type: Integer
+    prop_name: "ro.surface_flinger.native_window_buffers_format"
+  }
+  prop {
     api_name: "present_time_offset_from_vsync_ns"
     type: Long
     prop_name: "ro.surface_flinger.present_time_offset_from_vsync_ns"

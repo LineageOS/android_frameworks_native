@@ -507,3 +507,11 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.game_default_frame_rate_override"
 }
+
+prop {
+    api_name: "native_window_buffers_format"
+    type: Integer
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.native_window_buffers_format"
+}
