@@ -17,6 +17,14 @@
 #ifndef TARGET_PROVIDES_UDFPS_LIB
 #include <compositionengine/UdfpsExtension.h>
 
+uint32_t getUdfpsAodZOrder(uint32_t z) {
+    return z;
+}
+
+uint32_t getUdfpsDimZOrder(uint32_t z) {
+    return z;
+}
+
 uint32_t getUdfpsZOrder(uint32_t z, __unused bool touched) {
     return z;
 }
