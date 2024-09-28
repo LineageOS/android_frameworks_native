@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The LineageOS Project
+ * Copyright 2020-2024 The LineageOS Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,10 @@
 
 #ifndef TARGET_PROVIDES_UDFPS_LIB
 #include <compositionengine/UdfpsExtension.h>
+
+uint32_t getUdfpsDimZOrder(uint32_t z) {
+    return z;
+}
 
 uint32_t getUdfpsZOrder(uint32_t z, __unused bool touched) {
     return z;
