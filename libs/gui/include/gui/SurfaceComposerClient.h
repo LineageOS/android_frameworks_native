@@ -382,6 +382,11 @@ public:
 
     static status_t destroyVirtualDisplay(const sp<IBinder>& displayToken);
 
+    static sp<IBinder> createDisplay(const String8& displayName, bool isSecure,
+                                            float requestedRefreshRate = 0);
+
+    static void destroyDisplay(const sp<IBinder>& displayToken);
+
     static std::vector<PhysicalDisplayId> getPhysicalDisplayIds();
 
     static sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId);

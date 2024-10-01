@@ -1298,6 +1298,15 @@ status_t SurfaceComposerClient::destroyVirtualDisplay(const sp<IBinder>& display
             .transactionError();
 }
 
+sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool isSecure,
+                                                 float requestedRefereshRate) {
+    return SurfaceComposerClient::createVirtualDisplay(std::string(displayName.c_str()), isSecure, kEmpty, requestedRefereshRate);
+}
+
+void SurfaceComposerClient::destroyDisplay(const sp<IBinder>& displayToken) {
+    SurfaceComposerClient::destroyVirtualDisplay(displayToken);
+}
+
 std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
     std::vector<int64_t> displayIds;
     std::vector<PhysicalDisplayId> physicalDisplayIds;
