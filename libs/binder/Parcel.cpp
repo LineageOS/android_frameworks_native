@@ -2375,6 +2375,14 @@ status_t Parcel::growData(size_t len)
         return BAD_VALUE;
     }
 
+    if (mDataPos > mDataSize) {
+        // b/370831157 - this case used to abort. We also don't expect mDataPos < mDataSize, but
+        // this would only waste a bit of memory, so it's okay.
+        ALOGE("growData only expected at the end of a Parcel. pos: %zu, size: %zu, capacity: %zu",
+              mDataPos, len, mDataCapacity);
+        return BAD_VALUE;
+    }
+
     if (len > SIZE_MAX - mDataSize) return NO_MEMORY; // overflow
     if (mDataSize + len > SIZE_MAX / 3) return NO_MEMORY; // overflow
     size_t newSize = ((mDataSize+len)*3)/2;
