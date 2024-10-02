@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "9be7486e_e276c0c7",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 14048
+      },
+      "writtenOn": "2024-10-02T23:49:16Z",
+      "side": 1,
+      "message": "Desktop GL chain verified on foster, dolphin renders using desktop gl.",
+      "revId": "27bc1ca13a16f0dc7fe80a03d397fa09d103db4b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
