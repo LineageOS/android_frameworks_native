@@ -592,6 +592,9 @@ public:
     void                print(TextOutput& to, uint32_t flags = 0) const;
 
 private:
+    // Close all file descriptors in the parcel at object positions >= newObjectsSize.
+    __attribute__((__visibility__("hidden"))) void truncateFileDescriptors(size_t newObjectsSize);
+
     typedef void        (*release_func)(Parcel* parcel,
                                         const uint8_t* data, size_t dataSize,
                                         const binder_size_t* objects, size_t objectsSize);
