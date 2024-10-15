@@ -2526,11 +2526,15 @@ const flat_binder_object* Parcel::readObject(bool nullMetaData) const
 
 void Parcel::closeFileDescriptors()
 {
+    truncateFileDescriptors(0);
+}
+
+void Parcel::truncateFileDescriptors(size_t newObjectsSize) {
     size_t i = mObjectsSize;
     if (i > 0) {
         //ALOGI("Closing file descriptors for %zu objects...", i);
     }
-    while (i > 0) {
+    while (i > newObjectsSize) {
         i--;
         const flat_binder_object* flat
             = reinterpret_cast<flat_binder_object*>(mData+mObjects[i]);
@@ -2662,6 +2666,7 @@ void Parcel::freeDataNoInit()
     if (mOwner) {
         LOG_ALLOC("Parcel %p: freeing other owner data", this);
         //ALOGI("Freeing data ref of %p (pid=%d)", this, getpid());
+        closeFileDescriptors();
         mOwner(this, mData, mDataSize, mObjects, mObjectsSize, mOwnerCookie);
     } else {
         LOG_ALLOC("Parcel %p: freeing allocated data", this);
@@ -2765,8 +2770,9 @@ status_t Parcel::continueWrite(size_t desired)
         if (desired == 0) {
             objectsSize = 0;
         } else {
+            validateReadData(mDataSize); // hack to sort the objects
             while (objectsSize > 0) {
-                if (mObjects[objectsSize-1] < desired)
+                if (mObjects[objectsSize-1] + sizeof(flat_binder_object) <= desired)
                     break;
                 objectsSize--;
             }
@@ -2811,8 +2817,18 @@ status_t Parcel::continueWrite(size_t desired)
         }
         if (objects && mObjects) {
             memcpy(objects, mObjects, objectsSize*sizeof(binder_size_t));
+            // All FDs are owned when `mOwner`, even when `cookie == 0`. When
+            // we switch to `!mOwner`, we need to explicitly mark the FDs as
+            // owned.
+            for (size_t i = 0; i < objectsSize; i++) {
+                flat_binder_object* flat = reinterpret_cast<flat_binder_object*>(data + objects[i]);
+                if (flat->hdr.type == BINDER_TYPE_FD) {
+                    flat->cookie = 1;
+                }
+            }
         }
         //ALOGI("Freeing data ref of %p (pid=%d)", this, getpid());
+        truncateFileDescriptors(objectsSize);
         mOwner(this, mData, mDataSize, mObjects, mObjectsSize, mOwnerCookie);
         mOwner = nullptr;
 

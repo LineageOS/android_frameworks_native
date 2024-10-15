@@ -1307,7 +1307,7 @@ void IPCThreadState::threadDestructor(void *st)
 }
 
 
-void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
+void IPCThreadState::freeBuffer(Parcel* /*parcel*/, const uint8_t* data,
                                 size_t /*dataSize*/,
                                 const binder_size_t* /*objects*/,
                                 size_t /*objectsSize*/, void* /*cookie*/)
@@ -1317,7 +1317,6 @@ void IPCThreadState::freeBuffer(Parcel* parcel, const uint8_t* data,
         alog << "Writing BC_FREE_BUFFER for " << data << endl;
     }
     ALOG_ASSERT(data != NULL, "Called with NULL data");
-    if (parcel != nullptr) parcel->closeFileDescriptors();
     IPCThreadState* state = self();
     state->mOut.writeInt32(BC_FREE_BUFFER);
     state->mOut.writePointer((uintptr_t)data);

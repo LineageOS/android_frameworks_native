@@ -23,16 +23,20 @@
 
 #include <gtest/gtest.h>
 
+#include <android-base/logging.h>
+#include <android-base/unique_fd.h>
 #include <binder/Binder.h>
 #include <binder/IBinder.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 
 #include <sys/epoll.h>
+#include <sys/mman.h>
 
 #define ARRAY_SIZE(array) (sizeof array / sizeof array[0])
 
 using namespace android;
+using android::base::unique_fd;
 
 static ::testing::AssertionResult IsPageAligned(void *buf) {
     if (((unsigned long)buf & ((unsigned long)PAGE_SIZE - 1)) == 0)
@@ -67,6 +71,8 @@ enum BinderLibTestTranscationCode {
     BINDER_LIB_TEST_WRITE_FILE_TRANSACTION,
     BINDER_LIB_TEST_WRITE_PARCEL_FILE_DESCRIPTOR_TRANSACTION,
     BINDER_LIB_TEST_PROMOTE_WEAK_REF_TRANSACTION,
+    BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_OWNED_TRANSACTION,
+    BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_UNOWNED_TRANSACTION,
     BINDER_LIB_TEST_EXIT_TRANSACTION,
     BINDER_LIB_TEST_DELAYED_EXIT_TRANSACTION,
     BINDER_LIB_TEST_GET_PTR_SIZE_TRANSACTION,
@@ -381,6 +387,35 @@ class TestDeathRecipient : public IBinder::DeathRecipient, public BinderLibTestE
             (void)who;
             triggerEvent();
         };
+};
+
+ssize_t countFds() {
+    DIR* dir = opendir("/proc/self/fd/");
+    if (dir == nullptr) return -1;
+    ssize_t ret = 0;
+    dirent* ent;
+    while ((ent = readdir(dir)) != nullptr) ret++;
+    closedir(dir);
+    return ret;
+}
+
+struct FdLeakDetector {
+    int startCount;
+
+    FdLeakDetector() {
+        // This log statement is load bearing. We have to log something before
+        // counting FDs to make sure the logging system is initialized, otherwise
+        // the sockets it opens will look like a leak.
+        ALOGW("FdLeakDetector counting FDs.");
+        startCount = countFds();
+    }
+    ~FdLeakDetector() {
+        int endCount = countFds();
+        if (startCount != endCount) {
+            ADD_FAILURE() << "fd count changed (" << startCount << " -> " << endCount
+                          << ") fd leak?";
+        }
+    }
 };
 
 TEST_F(BinderLibTest, NopTransaction) {
@@ -800,6 +835,100 @@ TEST_F(BinderLibTest, PassParcelFileDescriptor) {
     waitForReadData(read_end.get(), 5000); /* wait for other proccess to close pipe */
 
     EXPECT_EQ(0, read(read_end.get(), readbuf.data(), datasize));
+}
+
+TEST_F(BinderLibTest, RecvOwnedFileDescriptors) {
+    FdLeakDetector fd_leak_detector;
+
+    Parcel data;
+    Parcel reply;
+    EXPECT_EQ(NO_ERROR,
+              m_server->transact(BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_OWNED_TRANSACTION, data,
+                                 &reply));
+    unique_fd a, b;
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&a));
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&b));
+}
+
+// Used to trigger fdsan error (b/239222407).
+TEST_F(BinderLibTest, RecvOwnedFileDescriptorsAndWriteInt) {
+    GTEST_SKIP() << "triggers fdsan false positive: b/370824489";
+
+    FdLeakDetector fd_leak_detector;
+
+    Parcel data;
+    Parcel reply;
+    EXPECT_EQ(NO_ERROR,
+              m_server->transact(BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_OWNED_TRANSACTION, data,
+                                 &reply));
+    reply.setDataPosition(reply.dataSize());
+    reply.writeInt32(0);
+    reply.setDataPosition(0);
+    unique_fd a, b;
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&a));
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&b));
+}
+
+// Used to trigger fdsan error (b/239222407).
+TEST_F(BinderLibTest, RecvOwnedFileDescriptorsAndTruncate) {
+    GTEST_SKIP() << "triggers fdsan false positive: b/370824489";
+
+    FdLeakDetector fd_leak_detector;
+
+    Parcel data;
+    Parcel reply;
+    EXPECT_EQ(NO_ERROR,
+              m_server->transact(BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_OWNED_TRANSACTION, data,
+                                 &reply));
+    reply.setDataSize(reply.dataSize() - sizeof(flat_binder_object));
+    unique_fd a, b;
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&a));
+    EXPECT_EQ(BAD_TYPE, reply.readUniqueFileDescriptor(&b));
+}
+
+TEST_F(BinderLibTest, RecvUnownedFileDescriptors) {
+    FdLeakDetector fd_leak_detector;
+
+    Parcel data;
+    Parcel reply;
+    EXPECT_EQ(NO_ERROR,
+              m_server->transact(BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_UNOWNED_TRANSACTION, data,
+                                 &reply));
+    unique_fd a, b;
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&a));
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&b));
+}
+
+// Used to trigger fdsan error (b/239222407).
+TEST_F(BinderLibTest, RecvUnownedFileDescriptorsAndWriteInt) {
+    FdLeakDetector fd_leak_detector;
+
+    Parcel data;
+    Parcel reply;
+    EXPECT_EQ(NO_ERROR,
+              m_server->transact(BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_UNOWNED_TRANSACTION, data,
+                                 &reply));
+    reply.setDataPosition(reply.dataSize());
+    reply.writeInt32(0);
+    reply.setDataPosition(0);
+    unique_fd a, b;
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&a));
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&b));
+}
+
+// Used to trigger fdsan error (b/239222407).
+TEST_F(BinderLibTest, RecvUnownedFileDescriptorsAndTruncate) {
+    FdLeakDetector fd_leak_detector;
+
+    Parcel data;
+    Parcel reply;
+    EXPECT_EQ(NO_ERROR,
+              m_server->transact(BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_UNOWNED_TRANSACTION, data,
+                                 &reply));
+    reply.setDataSize(reply.dataSize() - sizeof(flat_binder_object));
+    unique_fd a, b;
+    EXPECT_EQ(OK, reply.readUniqueFileDescriptor(&a));
+    EXPECT_EQ(BAD_TYPE, reply.readUniqueFileDescriptor(&b));
 }
 
 TEST_F(BinderLibTest, PromoteLocal) {
@@ -1354,6 +1483,40 @@ class BinderLibTestService : public BBinder
 
                 if (strong == nullptr) {
                     reply->setError(1);
+                }
+                return NO_ERROR;
+            }
+            case BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_OWNED_TRANSACTION: {
+                unique_fd fd1(memfd_create("memfd1", MFD_CLOEXEC));
+                if (!fd1.ok()) {
+                    PLOG(ERROR) << "memfd_create failed";
+                    return UNKNOWN_ERROR;
+                }
+                unique_fd fd2(memfd_create("memfd2", MFD_CLOEXEC));
+                if (!fd2.ok()) {
+                    PLOG(ERROR) << "memfd_create failed";
+                    return UNKNOWN_ERROR;
+                }
+                status_t ret;
+                ret = reply->writeFileDescriptor(fd1.release(), true);
+                if (ret != NO_ERROR) {
+                    return ret;
+                }
+                ret = reply->writeFileDescriptor(fd2.release(), true);
+                if (ret != NO_ERROR) {
+                    return ret;
+                }
+                return NO_ERROR;
+            }
+            case BINDER_LIB_TEST_GET_FILE_DESCRIPTORS_UNOWNED_TRANSACTION: {
+                status_t ret;
+                ret = reply->writeFileDescriptor(STDOUT_FILENO, false);
+                if (ret != NO_ERROR) {
+                    return ret;
+                }
+                ret = reply->writeFileDescriptor(STDERR_FILENO, false);
+                if (ret != NO_ERROR) {
+                    return ret;
                 }
                 return NO_ERROR;
             }
