@@ -2625,13 +2625,17 @@ const flat_binder_object* Parcel::readObject(bool nullMetaData) const
 #endif // BINDER_WITH_KERNEL_IPC
 
 void Parcel::closeFileDescriptors() {
+    truncateFileDescriptors(0);
+}
+
+void Parcel::truncateFileDescriptors(size_t newObjectsSize) {
     if (auto* kernelFields = maybeKernelFields()) {
 #ifdef BINDER_WITH_KERNEL_IPC
         size_t i = kernelFields->mObjectsSize;
         if (i > 0) {
             // ALOGI("Closing file descriptors for %zu objects...", i);
         }
-        while (i > 0) {
+        while (i > newObjectsSize) {
             i--;
             const flat_binder_object* flat =
                     reinterpret_cast<flat_binder_object*>(mData + kernelFields->mObjects[i]);
@@ -2642,6 +2646,7 @@ void Parcel::closeFileDescriptors() {
             }
         }
 #else  // BINDER_WITH_KERNEL_IPC
+        (void)newObjectsSize;
         LOG_ALWAYS_FATAL("Binder kernel driver disabled at build time");
 #endif // BINDER_WITH_KERNEL_IPC
     } else if (auto* rpcFields = maybeRpcFields()) {
@@ -2994,13 +2999,38 @@ status_t Parcel::continueWrite(size_t desired)
             objectsSize = 0;
         } else {
             if (kernelFields) {
+#ifdef BINDER_WITH_KERNEL_IPC
+                validateReadData(mDataSize); // hack to sort the objects
                 while (objectsSize > 0) {
-                    if (kernelFields->mObjects[objectsSize - 1] < desired) break;
+                    if (kernelFields->mObjects[objectsSize - 1] + sizeof(flat_binder_object) <=
+                        desired)
+                        break;
                     objectsSize--;
                 }
+#endif // BINDER_WITH_KERNEL_IPC
             } else {
                 while (objectsSize > 0) {
-                    if (rpcFields->mObjectPositions[objectsSize - 1] < desired) break;
+                    // Object size varies by type.
+                    uint32_t pos = rpcFields->mObjectPositions[objectsSize - 1];
+                    size_t size = sizeof(RpcFields::ObjectType);
+                    uint32_t minObjectEnd;
+                    if (__builtin_add_overflow(pos, sizeof(RpcFields::ObjectType), &minObjectEnd) ||
+                        minObjectEnd > mDataSize) {
+                        return BAD_VALUE;
+                    }
+                    const auto type = *reinterpret_cast<const RpcFields::ObjectType*>(mData + pos);
+                    switch (type) {
+                        case RpcFields::TYPE_BINDER_NULL:
+                            break;
+                        case RpcFields::TYPE_BINDER:
+                            size += sizeof(uint64_t); // address
+                            break;
+                        case RpcFields::TYPE_NATIVE_FILE_DESCRIPTOR:
+                            size += sizeof(int32_t); // fd index
+                            break;
+                    }
+
+                    if (pos + size <= desired) break;
                     objectsSize--;
                 }
             }
@@ -3049,15 +3079,24 @@ status_t Parcel::continueWrite(size_t desired)
         if (mData) {
             memcpy(data, mData, mDataSize < desired ? mDataSize : desired);
         }
+#ifdef BINDER_WITH_KERNEL_IPC
         if (objects && kernelFields && kernelFields->mObjects) {
             memcpy(objects, kernelFields->mObjects, objectsSize * sizeof(binder_size_t));
+            // All FDs are owned when `mOwner`, even when `cookie == 0`. When
+            // we switch to `!mOwner`, we need to explicitly mark the FDs as
+            // owned.
+            for (size_t i = 0; i < objectsSize; i++) {
+                flat_binder_object* flat = reinterpret_cast<flat_binder_object*>(data + objects[i]);
+                if (flat->hdr.type == BINDER_TYPE_FD) {
+                    flat->cookie = 1;
+                }
+            }
         }
         // ALOGI("Freeing data ref of %p (pid=%d)", this, getpid());
         if (kernelFields) {
-            // TODO(b/239222407): This seems wrong. We should only free FDs when
-            // they are in a truncated section of the parcel.
-            closeFileDescriptors();
+            truncateFileDescriptors(objectsSize);
         }
+#endif // BINDER_WITH_KERNEL_IPC
         mOwner(mData, mDataSize, kernelFields ? kernelFields->mObjects : nullptr,
                kernelFields ? kernelFields->mObjectsSize : 0);
         mOwner = nullptr;
@@ -3184,11 +3223,19 @@ status_t Parcel::truncateRpcObjects(size_t newObjectsSize) {
     }
     while (rpcFields->mObjectPositions.size() > newObjectsSize) {
         uint32_t pos = rpcFields->mObjectPositions.back();
-        rpcFields->mObjectPositions.pop_back();
+        uint32_t minObjectEnd;
+        if (__builtin_add_overflow(pos, sizeof(RpcFields::ObjectType), &minObjectEnd) ||
+            minObjectEnd > mDataSize) {
+            return BAD_VALUE;
+        }
         const auto type = *reinterpret_cast<const RpcFields::ObjectType*>(mData + pos);
         if (type == RpcFields::TYPE_NATIVE_FILE_DESCRIPTOR) {
-            const auto fdIndex =
-                    *reinterpret_cast<const int32_t*>(mData + pos + sizeof(RpcFields::ObjectType));
+            uint32_t objectEnd;
+            if (__builtin_add_overflow(minObjectEnd, sizeof(int32_t), &objectEnd) ||
+                objectEnd > mDataSize) {
+                return BAD_VALUE;
+            }
+            const auto fdIndex = *reinterpret_cast<const int32_t*>(mData + minObjectEnd);
             if (rpcFields->mFds == nullptr || fdIndex < 0 ||
                 static_cast<size_t>(fdIndex) >= rpcFields->mFds->size()) {
                 ALOGE("RPC Parcel contains invalid file descriptor index. index=%d fd_count=%zu",
@@ -3198,6 +3245,7 @@ status_t Parcel::truncateRpcObjects(size_t newObjectsSize) {
             // In practice, this always removes the last element.
             rpcFields->mFds->erase(rpcFields->mFds->begin() + fdIndex);
         }
+        rpcFields->mObjectPositions.pop_back();
     }
     return OK;
 }

@@ -614,6 +614,9 @@ public:
     void print(std::ostream& to, uint32_t flags = 0) const;
 
 private:
+    // Close all file descriptors in the parcel at object positions >= newObjectsSize.
+    __attribute__((__visibility__("hidden"))) void truncateFileDescriptors(size_t newObjectsSize);
+
     // `objects` and `objectsSize` always 0 for RPC Parcels.
     typedef void (*release_func)(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
                                  size_t objectsSize);
