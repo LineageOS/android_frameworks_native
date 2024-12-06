@@ -165,6 +165,7 @@ int main(int argc, char** argv) {
     IPCThreadState::self()->disableBackgroundScheduling(true);
 
     sp<ServiceManager> manager = sp<ServiceManager>::make(std::make_unique<Access>());
+    manager->setRequestingSid(true);
     if (!manager->addService("manager", manager, false /*allowIsolated*/, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk()) {
         LOG(ERROR) << "Could not self register servicemanager";
     }
