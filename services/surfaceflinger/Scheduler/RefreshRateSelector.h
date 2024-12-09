@@ -321,7 +321,7 @@ public:
     RefreshRateSelector(const RefreshRateSelector&) = delete;
     RefreshRateSelector& operator=(const RefreshRateSelector&) = delete;
 
-    const DisplayModes& displayModes() const { return mDisplayModes; }
+    const DisplayModes& displayModes() const REQUIRES(mLock) { return mDisplayModes; }
 
     // Returns whether switching modes (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the modes only
