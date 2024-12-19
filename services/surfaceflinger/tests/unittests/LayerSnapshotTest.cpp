@@ -1922,17 +1922,17 @@ TEST_F(LayerSnapshotTest, multipleEdgeExtensionIncreaseBoundSizeWithinCrop) {
 }
 
 TEST_F(LayerSnapshotTest, shouldUpdateInputWhenNoInputInfo) {
-    // By default the layer has no buffer, so we don't expect it to have an input info
+    // If a layer has no buffer or no color, it doesn't have an input info
+    setColor(111, {-1._hf, -1._hf, -1._hf});
+    UPDATE_AND_VERIFY(mSnapshotBuilder, {1, 11, 12, 121, 122, 1221, 13, 2});
     EXPECT_FALSE(getSnapshot(111)->hasInputInfo());
 
     setBuffer(111);
-
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
 
     EXPECT_TRUE(getSnapshot(111)->hasInputInfo());
     EXPECT_TRUE(getSnapshot(111)->inputInfo.inputConfig.test(
             gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL));
-    EXPECT_FALSE(getSnapshot(2)->hasInputInfo());
 }
 
 } // namespace android::surfaceflinger::frontend

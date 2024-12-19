@@ -629,4 +629,32 @@ TEST_F(LayerLifecycleManagerTest, testInputInfoOfRequestedLayerState) {
     EXPECT_TRUE(getRequestedLayerState(mLifecycleManager, 111)->needsInputInfo());
 }
 
+TEST_F(LayerLifecycleManagerTest, layerWithBufferNeedsInputInfo) {
+    // If a layer has no buffer or no color, it doesn't have an input info
+    LayerHierarchyTestBase::createRootLayer(3);
+    setColor(3, {-1._hf, -1._hf, -1._hf});
+    mLifecycleManager.commitChanges();
+
+    EXPECT_FALSE(getRequestedLayerState(mLifecycleManager, 3)->needsInputInfo());
+
+    setBuffer(3);
+    mLifecycleManager.commitChanges();
+
+    EXPECT_TRUE(getRequestedLayerState(mLifecycleManager, 3)->needsInputInfo());
+}
+
+TEST_F(LayerLifecycleManagerTest, layerWithColorNeedsInputInfo) {
+    // If a layer has no buffer or no color, it doesn't have an input info
+    LayerHierarchyTestBase::createRootLayer(4);
+    setColor(4, {-1._hf, -1._hf, -1._hf});
+    mLifecycleManager.commitChanges();
+
+    EXPECT_FALSE(getRequestedLayerState(mLifecycleManager, 4)->needsInputInfo());
+
+    setColor(4, {1._hf, 0._hf, 0._hf});
+    mLifecycleManager.commitChanges();
+
+    EXPECT_TRUE(getRequestedLayerState(mLifecycleManager, 4)->needsInputInfo());
+}
+
 } // namespace android::surfaceflinger::frontend
