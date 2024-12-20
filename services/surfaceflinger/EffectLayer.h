@@ -64,6 +64,7 @@ private:
     bool fillsColor() const;
     // Returns true if this layer has a blur value.
     bool hasBlur() const;
+    bool needsInputInfo() const override { return fillsColor() || hasInputInfo(); }
     bool hasSomethingToDraw() const { return fillsColor() || drawShadows() || hasBlur(); }
 };
 
