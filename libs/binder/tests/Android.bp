@@ -60,7 +60,9 @@ cc_test {
     defaults: ["binder_test_defaults"],
     srcs: ["binderLibTest.cpp"],
     shared_libs: [
+        "libbase",
         "libbinder",
+        "liblog",
         "libutils",
     ],
     static_libs: [
@@ -101,7 +103,9 @@ cc_test {
 
     srcs: ["binderLibTest.cpp"],
     shared_libs: [
+        "libbase",
         "libbinder",
+        "liblog",
         "libutils",
     ],
     static_libs: [

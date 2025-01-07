@@ -2246,7 +2246,7 @@ void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& toNonRotat
         info.frameBottom = 0;
         info.transform.reset();
         info.touchableRegion = Region();
-        info.flags = WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::NOT_FOCUSABLE;
+        info.flags |= WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::NOT_FOCUSABLE;
         return;
     }
 
