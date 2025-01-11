@@ -123,10 +123,10 @@ public:
                 .build();
     }
 
-    static impl::DisplayColorProfile createProfileWithSRGBColorModeSupport(bool wcg = true) {
+    static impl::DisplayColorProfile createProfileWithSRGBColorModeSupport() {
         return ProfileFactory()
+                .setHasWideColorGamut(true)
                 .addHdrType(Hdr::HDR10)
-                .setHasWideColorGamut(wcg)
                 .addColorModeRenderIntent(ColorMode::SRGB, RenderIntent::COLORIMETRIC)
                 .addColorModeRenderIntent(ColorMode::SRGB, RenderIntent::ENHANCE)
                 .addColorModeRenderIntent(ColorMode::SRGB, VendorRenderIntent)
@@ -289,7 +289,7 @@ TEST_F(DisplayColorProfileTest, ctorUsesOrDefaultsLuminanceValuesFromInputArgs) 
 TEST_F(DisplayColorProfileTest, hasRenderIntentReturnsExpectedValueWhenOutputHasNoSupport) {
     auto profile = ProfileFactory::createProfileWithNoColorModeSupport();
 
-    EXPECT_TRUE(profile.hasRenderIntent(RenderIntent::COLORIMETRIC));
+    EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::COLORIMETRIC));
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::ENHANCE));
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_COLORIMETRIC));
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_ENHANCE));
@@ -304,16 +304,6 @@ TEST_F(DisplayColorProfileTest, hasRenderIntentReturnsExpectedValueWhenOutputHas
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_COLORIMETRIC));
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_ENHANCE));
     EXPECT_FALSE(profile.hasRenderIntent(VendorRenderIntent));
-}
-
-TEST_F(DisplayColorProfileTest, hasRenderIntentReturnsExpectedValueWhenOutputHasSRGBSupport_NoWCG) {
-    auto profile = ProfileFactory::createProfileWithSRGBColorModeSupport(false);
-
-    EXPECT_TRUE(profile.hasRenderIntent(RenderIntent::COLORIMETRIC));
-    EXPECT_TRUE(profile.hasRenderIntent(RenderIntent::ENHANCE));
-    EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_COLORIMETRIC));
-    EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_ENHANCE));
-    EXPECT_TRUE(profile.hasRenderIntent(VendorRenderIntent));
 }
 
 TEST_F(DisplayColorProfileTest, hasRenderIntentReturnsExpectedValueWhenOutputHasSRGBSupport) {
@@ -479,40 +469,6 @@ TEST_F(DisplayColorProfileTest, getBestColorModeReturnsExpectedModesWhenOutputHa
 
             /* 12 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
             /* 13 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /* 14 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* clang-format on */
-    };
-
-    checkGetBestColorMode(profile, expectedResults);
-}
-
-TEST_F(DisplayColorProfileTest,
-       getBestColorModeReturnsExpectedModesWhenOutputHasSRGBSupport_NoWCG) {
-    auto profile = ProfileFactory::createProfileWithSRGBColorModeSupport(false);
-
-    // Note: This table of expected values goes with the table of arguments
-    // used in checkGetBestColorMode.
-    using Result = std::tuple<Dataspace, ColorMode, RenderIntent>;
-    std::array<Result, 15> expectedResults = {
-            /* clang-format off */
-            /*  0 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /*  1 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::ENHANCE},
-            /*  2 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
-
-            /*  3 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /*  4 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::ENHANCE},
-            /*  5 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
-
-            /*  6 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /*  7 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::ENHANCE},
-            /*  8 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
-
-            /*  9 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 10 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 11 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-
-            /* 12 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 13 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
             /* 14 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /* clang-format on */
     };
