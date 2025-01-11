@@ -260,6 +260,10 @@ const HdrCapabilities& DisplayColorProfile::getHdrCapabilities() const {
 
 void DisplayColorProfile::populateColorModes(
         const DisplayColorProfileCreationArgs::HwcColorModes& hwcColorModes) {
+    if (!hasWideColorGamut()) {
+        return;
+    }
+
     // collect all known SDR render intents
     std::unordered_set<RenderIntent> sdrRenderIntents(sSdrRenderIntents.begin(),
                                                       sSdrRenderIntents.end());
@@ -348,9 +352,13 @@ void DisplayColorProfile::getBestColorMode(Dataspace dataspace, RenderIntent int
         *outMode = iter->second.colorMode;
         *outIntent = iter->second.renderIntent;
     } else {
-        ALOGI("map unknown (%s)/(%s) to default color mode",
-              dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
-              decodeRenderIntent(intent).c_str());
+        // this is unexpected on a WCG display
+        if (hasWideColorGamut()) {
+            ALOGE("map unknown (%s)/(%s) to default color mode",
+                  dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
+                  decodeRenderIntent(intent).c_str());
+        }
+
         *outDataspace = Dataspace::UNKNOWN;
         *outMode = ColorMode::NATIVE;
         *outIntent = RenderIntent::COLORIMETRIC;
