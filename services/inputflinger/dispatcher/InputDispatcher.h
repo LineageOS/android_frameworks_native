@@ -651,7 +651,7 @@ private:
     void doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doSetPointerCaptureLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     bool afterKeyEventLockedInterruptible(const sp<Connection>& connection,
-                                          DispatchEntry* dispatchEntry, KeyEntry& keyEntry,
+                                          DispatchEntry* dispatchEntry,
                                           bool handled) REQUIRES(mLock);
     bool afterMotionEventLockedInterruptible(const sp<Connection>& connection,
                                              DispatchEntry* dispatchEntry, MotionEntry& motionEntry,
