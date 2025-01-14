@@ -1270,7 +1270,7 @@ private:
             REQUIRES(mLock);
     void doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     bool afterKeyEventLockedInterruptible(const sp<Connection>& connection,
-            DispatchEntry* dispatchEntry, KeyEntry* keyEntry, bool handled) REQUIRES(mLock);
+            DispatchEntry* dispatchEntry, bool handled) REQUIRES(mLock);
     bool afterMotionEventLockedInterruptible(const sp<Connection>& connection,
             DispatchEntry* dispatchEntry, MotionEntry* motionEntry, bool handled) REQUIRES(mLock);
     void doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
