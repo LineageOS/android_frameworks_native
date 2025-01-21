@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2f500101_576594d4",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2025-01-21T22:09:35Z",
+      "side": 1,
+      "message": "******************************************************\nerror: VNDK library: libbinder\u0027s ABI has INCOMPATIBLE CHANGES Please check compatibility report at: /mnt/out/out/lineage-18/soong/.intermediates/frameworks/native/libs/binder/libbinder/android_vendor.30_arm64_armv8-a_shared/libbinder.so.abidiff\n******************************************************\nerror: Please update ABI references with: $ANDROID_BUILD_TOP/development/vndk/tools/header-checker/utils/create_reference_dumps.py  -l libbinder\n01:08:04 ninja failed with: exit status 1\n\n\n\nSeen on griffin and Addison (arm64)",
+      "revId": "cbf7136a6697faffc6a85a689ca790755d14a7bd",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
