@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e6c1fcc2_985f2c2c",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2025-02-26T14:11:41Z",
+      "side": 1,
+      "message": "makes no sense, just write your own vibrator hal that doesn\u0027t require libvibrator.",
+      "revId": "3a496e2ab1c12f31287c22c9f0996d7cfa766bd6",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
