@@ -23,7 +23,7 @@ package {
 
 cc_defaults {
     name: "libvibrator_defaults",
-
+    vendor_available: true,
     defaults: [
         "aconfig_lib_cc_shared_link.defaults",
     ],
@@ -49,7 +49,7 @@ cc_defaults {
 cc_library {
     name: "libvibrator",
     defaults: ["libvibrator_defaults"],
-
+    vendor_available: true,
     shared_libs: [
         "libbinder",
         "liblog",
