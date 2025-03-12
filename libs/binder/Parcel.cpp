@@ -502,7 +502,7 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
         return status;
     }
 
-    if ((mDataSize+len) > mDataCapacity) {
+    if ((mDataPos + len) > mDataCapacity) {
         // grow data
         err = growData(len);
         if (err != NO_ERROR) {
