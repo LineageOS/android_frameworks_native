@@ -99,6 +99,30 @@
       },
       "revId": "5927dc26b186411fe83791c3c3daa471feeaf35a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "89320b2a_3356cd16",
+        "filename": "services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 546,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2025-03-16T15:25:36Z",
+      "side": 1,
+      "message": "I have verified, it is still working. But I was asking if we should also modify this part.",
+      "parentUuid": "b3f54314_a9949e11",
+      "range": {
+        "startLine": 545,
+        "startChar": 0,
+        "endLine": 546,
+        "endChar": 60
+      },
+      "revId": "5927dc26b186411fe83791c3c3daa471feeaf35a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
