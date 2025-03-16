@@ -52,6 +52,29 @@
       "parentUuid": "3b30c5dc_629d7f2c",
       "revId": "5927dc26b186411fe83791c3c3daa471feeaf35a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c67be194_0c5281c0",
+        "filename": "services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 546,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2025-03-16T14:18:54Z",
+      "side": 1,
+      "message": "Should we also switch to strstr here? This was introduced with https://review.lineageos.org/c/LineageOS/android_frameworks_native/+/405942 and made similar to the check we added below.",
+      "range": {
+        "startLine": 545,
+        "startChar": 0,
+        "endLine": 546,
+        "endChar": 60
+      },
+      "revId": "5927dc26b186411fe83791c3c3daa471feeaf35a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
