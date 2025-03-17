@@ -384,7 +384,6 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
     const binder_size_t *objects = parcel->mObjects;
     size_t size = parcel->mObjectsSize;
     int startPos = mDataPos;
-    int firstIndex = -1, lastIndex = -2;
 
     if (len == 0) {
         return NO_ERROR;
@@ -404,16 +403,18 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
     }
 
     // Count objects in range
-    for (int i = 0; i < (int) size; i++) {
-        size_t off = objects[i];
-        if ((off >= offset) && (off + sizeof(flat_binder_object) <= offset + len)) {
-            if (firstIndex == -1) {
-                firstIndex = i;
-            }
-            lastIndex = i;
+    int numObjects = 0;
+    for (int i = 0; i < (int)size; i++) {
+        size_t pos = objects[i];
+        if ((pos >= offset) && (pos + sizeof(flat_binder_object) <= offset + len)) {
+            numObjects++;
         }
     }
-    int numObjects = lastIndex - firstIndex + 1;
+
+    // Make sure we aren't appending over objects.
+    if (status_t status = validateReadData(mDataPos + len); status != OK) {
+        return status;
+    }
 
     if ((mDataSize+len) > mDataCapacity) {
         // grow data
@@ -449,8 +450,12 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
 
         // append and acquire objects
         int idx = mObjectsSize;
-        for (int i = firstIndex; i <= lastIndex; i++) {
-            size_t off = objects[i] - offset + startPos;
+        for (int i = 0; i < (int)size; i++) {
+            size_t pos = objects[i];
+            if (!(pos >= offset) || !(pos + sizeof(flat_binder_object) <= offset + len)) {
+                continue;
+            }
+            size_t off = pos - offset + startPos;
             mObjects[idx++] = off;
             mObjectsSize++;
 
@@ -470,6 +475,9 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
                 }
             }
         }
+        // Always clear sorted flag. It is tricky to infer if the append
+        // result maintains the sort or not.
+        mObjectsSorted = false;
     }
 
     return err;
@@ -1308,6 +1316,8 @@ restart_write:
             mObjects[mObjectsSize] = mDataPos;
             acquire_object(ProcessState::self(), val, this, &mOpenAshmemSize);
             mObjectsSize++;
+            // Clear sorted flag if we aren't appending to the end.
+            mObjectsSorted &= mDataPos == mDataSize;
         }
 
         return finishWrite(sizeof(flat_binder_object));
