@@ -26,6 +26,7 @@ using android::IPCThreadState;
 using android::NO_ERROR;
 using android::OK;
 using android::Parcel;
+using android::PERMISSION_DENIED;
 using android::sp;
 using android::status_t;
 using android::String16;
@@ -354,6 +355,16 @@ TEST(Parcel, AppendWithFdPartial) {
     ASSERT_EQ(2, p2.readInt32());
     ASSERT_NE(-1, p1.readFileDescriptor());
     ASSERT_NE(-1, p1.readFileDescriptor());
+}
+
+TEST(Parcel, AppendOverObject) {
+    Parcel p1;
+    p1.writeDupFileDescriptor(0);
+    Parcel p2;
+    p2.writeInt32(2);
+
+    p1.setDataPosition(8);
+    ASSERT_EQ(PERMISSION_DENIED, p1.appendFrom(&p2, 0, p2.dataSize()));
 }
 
 // Tests a second operation results in a parcel at the same location as it

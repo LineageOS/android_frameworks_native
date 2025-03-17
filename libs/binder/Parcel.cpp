@@ -542,6 +542,11 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
         return BAD_VALUE;
     }
 
+    // Make sure we aren't appending over objects.
+    if (status_t status = validateReadData(mDataPos + len); status != OK) {
+        return status;
+    }
+
     if ((mDataPos + len) > mDataCapacity) {
         // grow data
         err = growData(len);
@@ -565,17 +570,13 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
         const binder_size_t* objects = otherKernelFields->mObjects;
         size_t size = otherKernelFields->mObjectsSize;
         // Count objects in range
-        int firstIndex = -1, lastIndex = -2;
+        int numObjects = 0;
         for (int i = 0; i < (int)size; i++) {
-            size_t off = objects[i];
-            if ((off >= offset) && (off + sizeof(flat_binder_object) <= offset + len)) {
-                if (firstIndex == -1) {
-                    firstIndex = i;
-                }
-                lastIndex = i;
+            size_t pos = objects[i];
+            if ((pos >= offset) && (pos + sizeof(flat_binder_object) <= offset + len)) {
+                numObjects++;
             }
         }
-        int numObjects = lastIndex - firstIndex + 1;
         if (numObjects > 0) {
             const sp<ProcessState> proc(ProcessState::self());
             // grow objects
@@ -597,8 +598,12 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
 
             // append and acquire objects
             int idx = kernelFields->mObjectsSize;
-            for (int i = firstIndex; i <= lastIndex; i++) {
-                size_t off = objects[i] - offset + startPos;
+            for (int i = 0; i < (int)size; i++) {
+                size_t pos = objects[i];
+                if (!(pos >= offset) || !(pos + sizeof(flat_binder_object) <= offset + len)) {
+                    continue;
+                }
+                size_t off = pos - offset + startPos;
                 kernelFields->mObjects[idx++] = off;
                 kernelFields->mObjectsSize++;
 
@@ -618,6 +623,9 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
 
                 acquire_object(proc, *flat, this, true /*tagFds*/);
             }
+            // Always clear sorted flag. It is tricky to infer if the append
+            // result maintains the sort or not.
+            kernelFields->mObjectsSorted = false;
         }
 #else
         LOG_ALWAYS_FATAL("Binder kernel driver disabled at build time");
@@ -649,7 +657,10 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
             const binder_size_t objPos = otherRpcFields->mObjectPositions[i];
             if (offset <= objPos && objPos < offset + len) {
                 size_t newDataPos = objPos - offset + startPos;
-                rpcFields->mObjectPositions.push_back(newDataPos);
+                rpcFields->mObjectPositions
+                        .insert(std::upper_bound(rpcFields->mObjectPositions.begin(),
+                                                 rpcFields->mObjectPositions.end(), newDataPos),
+                                newDataPos);
 
                 mDataPos = newDataPos;
                 int32_t objectType;
@@ -1594,7 +1605,10 @@ status_t Parcel::writeFileDescriptor(int fd, bool takeOwnership) {
                 if (status_t err = writeInt32(rpcFields->mFds->size()); err != OK) {
                     return err;
                 }
-                rpcFields->mObjectPositions.push_back(dataPos);
+                rpcFields->mObjectPositions
+                        .insert(std::upper_bound(rpcFields->mObjectPositions.begin(),
+                                                 rpcFields->mObjectPositions.end(), dataPos),
+                                dataPos);
                 rpcFields->mFds->push_back(std::move(fdVariant));
                 return OK;
             }
@@ -1802,6 +1816,8 @@ restart_write:
             kernelFields->mObjects[kernelFields->mObjectsSize] = mDataPos;
             acquire_object(ProcessState::self(), val, this, true /*tagFds*/);
             kernelFields->mObjectsSize++;
+            // Clear sorted flag if we aren't appending to the end.
+            kernelFields->mObjectsSorted &= mDataPos == mDataSize;
         }
 
         return finishWrite(sizeof(flat_binder_object));
