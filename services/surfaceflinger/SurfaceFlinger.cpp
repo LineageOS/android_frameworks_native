@@ -3029,7 +3029,18 @@ ui::Rotation SurfaceFlinger::getPhysicalDisplayOrientation(DisplayId displayId,
             default:
                 break;
         }
+    } else {
+        std::string orientation = base::GetProperty("ro.surface_flinger.secondary_display_orientation",
+                                                    "");
+        if ("ORIENTATION_90" == orientation) {
+            return ui::ROTATION_90;
+        } else if ("ORIENTATION_180" == orientation) {
+            return ui::ROTATION_180;
+        } else if ("ORIENTATION_270" == orientation) {
+            return ui::ROTATION_270;
+        }
     }
+
     return ui::ROTATION_0;
 }
 
