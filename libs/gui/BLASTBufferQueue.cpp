@@ -299,10 +299,12 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
         t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
                    layer_state_t::eEnableBackpressure);
         // Migrate the picture profile handle to the new surface control.
+#if COM_ANDROID_GRAPHICS_LIBUI_FLAGS_APPLY_PICTURE_PROFILES
         if (com_android_graphics_libgui_flags_apply_picture_profiles() &&
             mPictureProfileHandle.has_value()) {
             t.setPictureProfileHandle(mSurfaceControl, *mPictureProfileHandle);
         }
+#endif // COM_ANDROID_GRAPHICS_LIBUI_FLAGS_APPLY_PICTURE_PROFILES
         applyTransaction = true;
     }
     mTransformHint = mSurfaceControl->getTransformHint();
@@ -684,6 +686,7 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
     if (!bufferItem.mIsAutoTimestamp) {
         t->setDesiredPresentTime(bufferItem.mTimestamp);
     }
+#if COM_ANDROID_GRAPHICS_LIBUI_FLAGS_APPLY_PICTURE_PROFILES
     if (com_android_graphics_libgui_flags_apply_picture_profiles() &&
         bufferItem.mPictureProfileHandle.has_value()) {
         t->setPictureProfileHandle(mSurfaceControl, *bufferItem.mPictureProfileHandle);
@@ -695,6 +698,7 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
             mPictureProfileHandle = std::nullopt;
         }
     }
+#endif // COM_ANDROID_GRAPHICS_LIBUI_FLAGS_APPLY_PICTURE_PROFILES
 
     // Drop stale frame timeline infos
     while (!mPendingFrameTimelines.empty() &&
