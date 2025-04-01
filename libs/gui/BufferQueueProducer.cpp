@@ -1106,7 +1106,9 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mIsAutoTimestamp = isAutoTimestamp;
         item.mDataSpace = dataSpace;
         item.mHdrMetadata = hdrMetadata;
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS_APPLY_PICTURE_PROFILES
         item.mPictureProfileHandle = pictureProfileHandle;
+#endif // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS_APPLY_PICTURE_PROFILES
         item.mFrameNumber = currentFrameNumber;
         item.mSlot = slot;
         item.mFence = acquireFence;

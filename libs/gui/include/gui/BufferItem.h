@@ -31,6 +31,8 @@
 #include <utils/Flattenable.h>
 #include <utils/StrongPointer.h>
 
+#include <com_android_graphics_libgui_flags.h>
+
 namespace android {
 
 class Fence;
@@ -94,9 +96,11 @@ class BufferItem : public Flattenable<BufferItem> {
     // mHdrMetadata is the HDR metadata associated with this buffer slot.
     HdrMetadata mHdrMetadata;
 
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS_APPLY_PICTURE_PROFILES
     // mPictureProfileHandle is a handle that points to a set of parameters that configure picture
     // processing hardware to enhance the quality of buffer contents.
     std::optional<PictureProfileHandle> mPictureProfileHandle;
+#endif // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS_APPLY_PICTURE_PROFILES
 
     // mFrameNumber is the number of the queued frame for this slot.
     uint64_t mFrameNumber;
