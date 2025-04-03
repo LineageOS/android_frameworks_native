@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "21262054_a6ab1716",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 22465
+      },
+      "writtenOn": "2025-04-03T11:29:35Z",
+      "side": 1,
+      "message": "Works fine in sweet with dodge QCOM WFD stack",
+      "revId": "56bf9a5d954946b8db08e90269f147ab626a4215",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
