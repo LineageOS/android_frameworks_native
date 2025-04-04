@@ -67,6 +67,24 @@
       "message": "I\u0027m partially against this as it\u0027ll break soon, but we\u0027ll hopefully have blobs to work with by then.",
       "revId": "56bf9a5d954946b8db08e90269f147ab626a4215",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "860214c1_733b346e",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2025-04-04T19:37:56Z",
+      "side": 1,
+      "message": "this is not expected to be ported to 23.",
+      "parentUuid": "cabb692e_6f6543f5",
+      "revId": "56bf9a5d954946b8db08e90269f147ab626a4215",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
