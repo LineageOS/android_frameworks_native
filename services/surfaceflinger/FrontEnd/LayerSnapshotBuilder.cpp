@@ -1155,7 +1155,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     auto displayInfo = displayInfoOpt.value_or(sDefaultInfo);
 
     if (!requested.hasInputInfo()) {
-        snapshot.inputInfo.inputConfig = InputConfig::NO_INPUT_CHANNEL;
+        snapshot.inputInfo.inputConfig |= InputConfig::NO_INPUT_CHANNEL;
     }
     fillInputFrameInfo(snapshot.inputInfo, displayInfo.transform, snapshot);
 

@@ -88,6 +88,8 @@ struct RequestedLayerState : layer_state_t {
     bool hasValidRelativeParent() const;
     bool hasInputInfo() const;
     bool needsInputInfo() const;
+    bool hasBufferOrSidebandStream() const;
+    bool fillsColor() const;
     bool hasBlur() const;
     bool hasFrameUpdate() const;
     bool hasReadyFrame() const;

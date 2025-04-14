@@ -560,7 +560,7 @@ bool RequestedLayerState::needsInputInfo() const {
         return false;
     }
 
-    if ((sidebandStream != nullptr) || (externalTexture != nullptr)) {
+    if (hasBufferOrSidebandStream() || fillsColor()) {
         return true;
     }
 
@@ -571,6 +571,15 @@ bool RequestedLayerState::needsInputInfo() const {
     const auto windowInfo = windowInfoHandle->getInfo();
     return windowInfo->token != nullptr ||
             windowInfo->inputConfig.test(gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL);
+}
+
+bool RequestedLayerState::hasBufferOrSidebandStream() const {
+    return ((sidebandStream != nullptr) || (externalTexture != nullptr));
+}
+
+bool RequestedLayerState::fillsColor() const {
+    return !hasBufferOrSidebandStream() && color.r >= 0.0_hf && color.g >= 0.0_hf &&
+            color.b >= 0.0_hf;
 }
 
 bool RequestedLayerState::hasBlur() const {
