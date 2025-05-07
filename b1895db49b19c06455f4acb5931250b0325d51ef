@@ -52,6 +52,24 @@
       "parentUuid": "6c00e033_ddb60e1b",
       "revId": "b1895db49b19c06455f4acb5931250b0325d51ef",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "912efb51_8be50884",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29080
+      },
+      "writtenOn": "2025-05-07T14:58:27Z",
+      "side": 1,
+      "message": "ro.board.api_level will never be \u003c __ANDROID_API_U__ because it\u0027s set from RELEASE_BOARD_API_LEVEL",
+      "parentUuid": "efd9f7cf_752758b9",
+      "revId": "b1895db49b19c06455f4acb5931250b0325d51ef",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
