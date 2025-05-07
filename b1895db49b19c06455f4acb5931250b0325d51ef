@@ -16,6 +16,24 @@
       "message": "does that even fix anything? if so what and on which device...?",
       "revId": "b1895db49b19c06455f4acb5931250b0325d51ef",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "6c00e033_ddb60e1b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29080
+      },
+      "writtenOn": "2025-05-07T14:54:24Z",
+      "side": 1,
+      "message": "I don\u0027t have any particular issue. But at least the check is entirely wrong and CLO does this:\nhttps://git.codelinaro.org/clo/la/platform/frameworks/native/-/commit/4a3cfa153c16c1b040e80dfb5a297b05579785a0",
+      "parentUuid": "b4e3b1b8_de7d3efa",
+      "revId": "b1895db49b19c06455f4acb5931250b0325d51ef",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
