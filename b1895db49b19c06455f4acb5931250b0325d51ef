@@ -88,6 +88,24 @@
       "parentUuid": "912efb51_8be50884",
       "revId": "b1895db49b19c06455f4acb5931250b0325d51ef",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2e9ee88a_e6caaf5e",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29080
+      },
+      "writtenOn": "2025-05-07T15:04:55Z",
+      "side": 1,
+      "message": "https://github.com/LineageOS/android_build/blob/lineage-22.2/core/board_config.mk#L1013",
+      "parentUuid": "bf82b5f7_1bc8d3fb",
+      "revId": "b1895db49b19c06455f4acb5931250b0325d51ef",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
