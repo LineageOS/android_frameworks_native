@@ -123,6 +123,24 @@
       "message": "The check works for OEMs with GRF. We build vendor from source, so vendor is built under the same API level as the system. For example on fogos:\n\nstock: ro.board.api_level\u003d30\n\nlineage: ro.board.api_level\u003d202404",
       "revId": "b1895db49b19c06455f4acb5931250b0325d51ef",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "5cbd6178_3c56da51",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29080
+      },
+      "writtenOn": "2025-05-07T20:39:28Z",
+      "side": 1,
+      "message": "I see. I thought the lowest possible value was 202404. I\u0027ll reword the commit message then",
+      "parentUuid": "1a7366a2_6b6b64e0",
+      "revId": "b1895db49b19c06455f4acb5931250b0325d51ef",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
