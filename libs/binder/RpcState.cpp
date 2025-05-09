@@ -987,6 +987,7 @@ processTransactInternalTailCall:
                       " objectTableBytesSize=%zu. Terminating!",
                       transactionData.size(), sizeof(RpcWireTransaction),
                       transaction->parcelDataSize, objectTableBytes->size);
+                (void)session->shutdownAndWait(false);
                 return BAD_VALUE;
             }
             objectTableSpan = *maybeSpan;
