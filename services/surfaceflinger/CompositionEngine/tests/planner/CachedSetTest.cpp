@@ -1011,12 +1011,12 @@ TEST_F(CachedSetTest, addBlur) {
     EXPECT_CALL(*layerFE1,
                 prepareClientComposition(ClientCompositionTargetSettingsBlurSettingsEq(
                         compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::
-                                Enabled)))
+                                Disabled)))
             .WillOnce(Return(clientComp1));
     EXPECT_CALL(*layerFE2,
                 prepareClientComposition(ClientCompositionTargetSettingsBlurSettingsEq(
                         compositionengine::LayerFE::ClientCompositionTargetSettings::BlurSetting::
-                                Enabled)))
+                                Disabled)))
             .WillOnce(Return(clientComp2));
     EXPECT_CALL(*layerFE3,
                 prepareClientComposition(ClientCompositionTargetSettingsBlurSettingsEq(
