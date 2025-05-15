@@ -75,6 +75,7 @@ enum class LayerStateField : uint32_t {
     HasProtectedContent   = 1u << 19,
     CachingHint           = 1u << 20,
     DimmingEnabled        = 1u << 21,
+    BlursDisabled         = 1u << 22,
 };
 // clang-format on
 
@@ -236,7 +237,8 @@ public:
     Rect getDisplayFrame() const { return mDisplayFrame.get(); }
     const Region& getVisibleRegion() const { return mVisibleRegion.get(); }
     bool hasBlurBehind() const {
-        return mBackgroundBlurRadius.get() > 0 || !mBlurRegions.get().empty();
+        return (mBackgroundBlurRadius.get() > 0 || !mBlurRegions.get().empty()) &&
+                !mIsBlursDisabled.get();
     }
     int32_t getBackgroundBlurRadius() const { return mBackgroundBlurRadius.get(); }
     aidl::android::hardware::graphics::composer3::Composition getCompositionType() const {
@@ -508,7 +510,10 @@ private:
     OutputLayerState<bool, LayerStateField::DimmingEnabled> mIsDimmingEnabled{
             [](auto layer) { return layer->getLayerFE().getCompositionState()->dimmingEnabled; }};
 
-    static const constexpr size_t kNumNonUniqueFields = 20;
+    OutputLayerState<bool, LayerStateField::BlursDisabled> mIsBlursDisabled{
+            [](auto layer) { return layer->getState().ignoreBlur; }};
+
+    static const constexpr size_t kNumNonUniqueFields = 21;
 
     std::array<StateInterface*, kNumNonUniqueFields> getNonUniqueFields() {
         std::array<const StateInterface*, kNumNonUniqueFields> constFields =
@@ -522,11 +527,12 @@ private:
     }
 
     std::array<const StateInterface*, kNumNonUniqueFields> getNonUniqueFields() const {
-        return {&mDisplayFrame, &mSourceCrop,     &mBufferTransform,      &mBlendMode,
-                &mAlpha,        &mLayerMetadata,  &mVisibleRegion,        &mOutputDataspace,
-                &mPixelFormat,  &mColorTransform, &mCompositionType,      &mSidebandStream,
-                &mBuffer,       &mSolidColor,     &mBackgroundBlurRadius, &mBlurRegions,
-                &mFrameNumber,  &mIsProtected,    &mCachingHint,          &mIsDimmingEnabled};
+        return {&mDisplayFrame,   &mSourceCrop,     &mBufferTransform,      &mBlendMode,
+                &mAlpha,          &mLayerMetadata,  &mVisibleRegion,        &mOutputDataspace,
+                &mPixelFormat,    &mColorTransform, &mCompositionType,      &mSidebandStream,
+                &mBuffer,         &mSolidColor,     &mBackgroundBlurRadius, &mBlurRegions,
+                &mFrameNumber,    &mIsProtected,    &mCachingHint,          &mIsDimmingEnabled,
+                &mIsBlursDisabled};
     }
 };
 

@@ -105,6 +105,9 @@ struct OutputLayerCompositionState {
     // The picture profile for this layer.
     PictureProfileHandle pictureProfileHandle;
 
+    // ignore blur requests if there's just too many on top of this layer
+    bool ignoreBlur{false};
+
     // Overrides the buffer, acquire fence, and display frame stored in LayerFECompositionState
     struct {
         std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;

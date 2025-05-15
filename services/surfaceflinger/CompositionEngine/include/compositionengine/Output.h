@@ -159,6 +159,7 @@ public:
         // only has a value if there's something needing it, like when a TrustedPresentationListener
         // is set
         std::optional<Region> aboveCoveredLayersExcludingOverlays;
+        int32_t aboveBlurRequests = 0;
     };
 
     virtual ~Output();
