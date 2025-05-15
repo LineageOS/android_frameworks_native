@@ -152,6 +152,7 @@ public:
         Region aboveOpaqueLayers;
         // The region of the output which should be considered dirty
         Region dirtyRegion;
+        int32_t aboveBlurRequests = 0;
     };
 
     virtual ~Output();

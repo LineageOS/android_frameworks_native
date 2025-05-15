@@ -193,9 +193,14 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
     std::vector<renderengine::LayerSettings> layerSettings;
     renderengine::LayerSettings highlight;
     for (const auto& layer : mLayers) {
+        auto blurSettings = targetSettings;
+        if (!layer.hasBlurBehind()) {
+            blurSettings.blurSetting =
+                    LayerFE::ClientCompositionTargetSettings::BlurSetting::Disabled;
+        }
         const auto clientCompositionList =
                 layer.getState()->getOutputLayer()->getLayerFE().prepareClientCompositionList(
-                        targetSettings);
+                        blurSettings);
         layerSettings.insert(layerSettings.end(), clientCompositionList.cbegin(),
                              clientCompositionList.cend());
     }
