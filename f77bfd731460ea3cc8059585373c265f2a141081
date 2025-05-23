@@ -16,6 +16,24 @@
       "message": "Does just changing this layer to UDFPS_LAYER_NAME work? When I made this change, requesting device composition for a layer caused device composition to be assigned to the layers above that one too.\n\nIf the base UDFPS layer is shown in all situations (as in, when pressed), and is below the DIM layer, that may work.",
       "revId": "f77bfd731460ea3cc8059585373c265f2a141081",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "e61bfd40_342cc699",
+        "filename": "services/surfaceflinger/CompositionEngine/src/Output.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 997,
+      "author": {
+        "id": 30416
+      },
+      "writtenOn": "2025-05-23T18:06:45Z",
+      "side": 0,
+      "message": "That does work. Right now both the dim layer and udfps layers uses TYPE_NAVIGATION_BAR_PANEL. After i changed the dimlayer to something higher up like that of TYPE_DISPLAY_OVERLAY, it changed to device composition. Even though I set custom zorder for the dim layer, that didn\u0027t have any effect on composition but altering the WindowType did.\n\nHowever, based on stock zordering,the dim layer is supposed to be the lowest of all\n\n| Bit index | Decimal | Layer       | Z-order      |\n| --------- | ------- | ----------- | ------------ |\n| 0         | 1       | **dim**     | `0x41000005` |\n| 1         | 2       | **pressed** | `0x41000033` |\n| 2         | 4       | **icon**    | `0x41000032` |\n| 3         | 8       | **aod**     | `0x41000011` |",
+      "parentUuid": "a654aa06_87fc5700",
+      "revId": "f77bfd731460ea3cc8059585373c265f2a141081",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
