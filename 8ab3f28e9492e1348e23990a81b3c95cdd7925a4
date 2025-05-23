@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "24bb0f33_41c80111",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13028
+      },
+      "writtenOn": "2025-05-23T11:43:19Z",
+      "side": 1,
+      "message": "Also commit message should detail, why / what it solves, not just what is done",
+      "revId": "8ab3f28e9492e1348e23990a81b3c95cdd7925a4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "ac23bcc4_a949bb61",
+        "filename": "services/surfaceflinger/CompositionEngine/src/Output.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 997,
+      "author": {
+        "id": 13028
+      },
+      "writtenOn": "2025-05-23T11:43:19Z",
+      "side": 1,
+      "message": "line length",
+      "revId": "8ab3f28e9492e1348e23990a81b3c95cdd7925a4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
