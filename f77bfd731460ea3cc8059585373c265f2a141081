@@ -34,6 +34,24 @@
       "parentUuid": "a654aa06_87fc5700",
       "revId": "f77bfd731460ea3cc8059585373c265f2a141081",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "adbf0ee7_8f4964c4",
+        "filename": "services/surfaceflinger/CompositionEngine/src/Output.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 997,
+      "author": {
+        "id": 22465
+      },
+      "writtenOn": "2025-05-24T11:20:30Z",
+      "side": 0,
+      "message": "Acknowledged\n\nI\u0027d say to use whatever approach you think fits best for all usecases, as not all devices use the DIM layer.",
+      "parentUuid": "e61bfd40_342cc699",
+      "revId": "f77bfd731460ea3cc8059585373c265f2a141081",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
