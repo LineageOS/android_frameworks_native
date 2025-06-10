@@ -827,7 +827,12 @@ status_t RpcState::processCommand(
 
     switch (command.command) {
         case RPC_COMMAND_TRANSACT:
-            if (type != CommandType::ANY) return BAD_TYPE;
+            if (type != CommandType::ANY) {
+                ALOGE("CommandType %d, but got RPC command %d.", static_cast<int>(type),
+                      command.command);
+                (void)session->shutdownAndWait(false);
+                return BAD_TYPE;
+            }
             return processTransact(connection, session, command, std::move(ancillaryFds));
         case RPC_COMMAND_DEC_STRONG:
             return processDecStrong(connection, session, command);
