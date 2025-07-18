@@ -32,6 +32,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <selinux/selinux.h>
+
 using namespace android;
 
 void writeString16(Parcel& parcel, const char* string)
@@ -50,6 +52,16 @@ int main(int argc, char* const argv[])
 {
     bool wantsUsage = false;
     int result = 0;
+
+    const char* app_context_prefix = "u:r:untrusted_app";
+    char* context;
+    if (!getcon(&context)) {
+        bool is_app = !strncmp(context, app_context_prefix,
+                               strlen(app_context_prefix));
+        freecon(context);
+        if (is_app)
+            return 0;
+    }
 
     /* Strip path off the program name. */
     char* prog_name = basename(argv[0]);

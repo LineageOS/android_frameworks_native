@@ -24,6 +24,7 @@ cc_binary {
         "libcutils",
         "libutils",
         "libbinder",
+        "libselinux",
     ],
 
     cflags: [
@@ -42,6 +43,7 @@ cc_binary {
         "libcutils",
         "libutils",
         "libbinder",
+        "libselinux",
     ],
 
     cflags: [
@@ -60,6 +62,7 @@ cc_binary_host {
         "libcutils",
         "libutils",
         "libbinder",
+        "libselinux",
     ],
 
     cflags: [
