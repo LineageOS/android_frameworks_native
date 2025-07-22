@@ -5346,6 +5346,12 @@ bool InputDispatcher::DispatcherTouchState::canWindowReceiveMotion(
         const android::inputdispatcher::MotionEntry& motionEntry) const {
     const WindowInfo& info = *window->getInfo();
 
+    if (info.touchOcclusionMode == TouchOcclusionMode::USE_OPACITY && info.alpha < 0.5f) {
+        LOG(INFO) << "Not sending motion to " << window->getName() << ", window opacity="
+            << info.alpha << " is below the threshold";
+        return false;
+    }
+
     // Skip spy window targets that are not valid for targeted injection.
     if (const auto err = verifyTargetedInjection(window, motionEntry); err) {
         return false;
