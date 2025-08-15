@@ -467,7 +467,7 @@ status_t Parcel::appendFrom(const Parcel *parcel, size_t offset, size_t len)
     // append data
     memcpy(mData + mDataPos, data + offset, len);
     mDataPos += len;
-    mDataSize += len;
+    if (mDataPos > mDataSize) mDataSize = mDataPos;
 
     err = NO_ERROR;
 
