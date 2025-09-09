@@ -88,6 +88,12 @@ props {
     enum_values: "ORIENTATION_0|ORIENTATION_90|ORIENTATION_180|ORIENTATION_270"
   }
   prop {
+    api_name: "secondary_display_orientation"
+    type: Enum
+    prop_name: "ro.surface_flinger.secondary_display_orientation"
+    enum_values: "ORIENTATION_0|ORIENTATION_90|ORIENTATION_180|ORIENTATION_270"
+  }
+  prop {
     api_name: "refresh_rate_switching"
     prop_name: "ro.surface_flinger.refresh_rate_switching"
     deprecated: true
