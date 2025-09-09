@@ -59,6 +59,9 @@ bool start_graphics_allocator_service(bool defaultValue);
 SurfaceFlingerProperties::primary_display_orientation_values primary_display_orientation(
         SurfaceFlingerProperties::primary_display_orientation_values defaultValue);
 
+SurfaceFlingerProperties::secondary_display_orientation_values secondary_display_orientation(
+        SurfaceFlingerProperties::secondary_display_orientation_values defaultValue);
+
 int64_t default_composition_dataspace(
         android::hardware::graphics::common::V1_2::Dataspace defaultValue);
 

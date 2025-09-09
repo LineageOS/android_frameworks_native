@@ -196,6 +196,16 @@ prop {
     prop_name: "ro.surface_flinger.primary_display_orientation"
 }
 
+# Returns the orientation of the secondary display device.
+prop {
+    api_name: "secondary_display_orientation"
+    type: Enum
+    enum_values: "ORIENTATION_0|ORIENTATION_90|ORIENTATION_180|ORIENTATION_270"
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.secondary_display_orientation"
+}
+
 # useColorManagement indicates whether SurfaceFlinger should manage color
 # by switching to appropriate color mode automatically depending on the
 # Dataspace of the surfaces on screen.
