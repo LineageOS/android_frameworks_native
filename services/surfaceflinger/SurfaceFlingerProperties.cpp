@@ -195,6 +195,44 @@ SurfaceFlingerProperties::primary_display_orientation_values primary_display_ori
     return SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_0;
 }
 
+SurfaceFlingerProperties::secondary_display_orientation_values secondary_display_orientation(
+        SurfaceFlingerProperties::secondary_display_orientation_values defaultValue) {
+    auto temp = SurfaceFlingerProperties::secondary_display_orientation();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    auto configDefault = DisplayOrientation::ORIENTATION_0;
+    switch (defaultValue) {
+        case SurfaceFlingerProperties::secondary_display_orientation_values::ORIENTATION_90:
+            configDefault = DisplayOrientation::ORIENTATION_90;
+            break;
+        case SurfaceFlingerProperties::secondary_display_orientation_values::ORIENTATION_180:
+            configDefault = DisplayOrientation::ORIENTATION_180;
+            break;
+        case SurfaceFlingerProperties::secondary_display_orientation_values::ORIENTATION_270:
+            configDefault = DisplayOrientation::ORIENTATION_270;
+            break;
+        default:
+            configDefault = DisplayOrientation::ORIENTATION_0;
+            break;
+    }
+    DisplayOrientation result =
+            getDisplayOrientation<V1_1::ISurfaceFlingerConfigs,
+                                  &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
+                    configDefault);
+    switch (result) {
+        case DisplayOrientation::ORIENTATION_90:
+            return SurfaceFlingerProperties::secondary_display_orientation_values::ORIENTATION_90;
+        case DisplayOrientation::ORIENTATION_180:
+            return SurfaceFlingerProperties::secondary_display_orientation_values::ORIENTATION_180;
+        case DisplayOrientation::ORIENTATION_270:
+            return SurfaceFlingerProperties::secondary_display_orientation_values::ORIENTATION_270;
+        default:
+            break;
+    }
+    return SurfaceFlingerProperties::secondary_display_orientation_values::ORIENTATION_0;
+}
+
 int64_t default_composition_dataspace(Dataspace defaultValue) {
     auto temp = SurfaceFlingerProperties::default_composition_dataspace();
     if (temp.has_value()) {
