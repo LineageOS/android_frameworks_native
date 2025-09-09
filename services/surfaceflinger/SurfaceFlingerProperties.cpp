@@ -151,6 +151,15 @@ SurfaceFlingerProperties::primary_display_orientation_values primary_display_ori
     return defaultValue;
 }
 
+SurfaceFlingerProperties::secondary_display_orientation_values secondary_display_orientation(
+        SurfaceFlingerProperties::secondary_display_orientation_values defaultValue) {
+    auto temp = SurfaceFlingerProperties::secondary_display_orientation();
+    if (temp.has_value()) {
+        return *temp;
+    }
+    return defaultValue;
+}
+
 int64_t default_composition_dataspace(Dataspace defaultValue) {
     auto temp = SurfaceFlingerProperties::default_composition_dataspace();
     if (temp.has_value()) {
