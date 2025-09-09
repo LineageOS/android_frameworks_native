@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c506e408_1fc74d39",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2025-09-09T19:14:29Z",
+      "side": 1,
+      "message": "Use sysprops, ro.surface_flinger.primary_display_orientation is a sysprop.",
+      "revId": "45499a01c623a9514018b112e47ad1e4247b1abe",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
