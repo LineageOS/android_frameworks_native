@@ -20,6 +20,7 @@
 #define LOG_NDEBUG 1
 
 #include <android-base/chrono_utils.h>
+#include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android/os/IInputConstants.h>
@@ -2133,6 +2134,11 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
         for (const sp<WindowInfoHandle>& windowHandle : newTouchedWindows) {
             const WindowInfo& info = *windowHandle->getInfo();
 
+            if (info.touchOcclusionMode == TouchOcclusionMode::USE_OPACITY && info.alpha < 0.5f) {
+                LOG(INFO) << "Not sending motion to " << windowHandle->getName()
+                    << ", window opacity=" << info.alpha << " is below the threshold";
+                continue;
+            }
             // Skip spy window targets that are not valid for targeted injection.
             if (const auto err = verifyTargetedInjection(windowHandle, entry); err) {
                 continue;
