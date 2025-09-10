@@ -16,6 +16,23 @@
       "message": "Use sysprops, ro.surface_flinger.primary_display_orientation is a sysprop.",
       "revId": "45499a01c623a9514018b112e47ad1e4247b1abe",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "86333b1d_c34d65a4",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 3033,
+      "author": {
+        "id": 13028
+      },
+      "writtenOn": "2025-09-10T06:10:58Z",
+      "side": 1,
+      "message": "Line length",
+      "revId": "45499a01c623a9514018b112e47ad1e4247b1abe",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
