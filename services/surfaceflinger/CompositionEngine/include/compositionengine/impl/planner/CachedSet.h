@@ -42,6 +42,7 @@ public:
         const std::string& getName() const { return mState->getName(); }
         int32_t getBackgroundBlurRadius() const { return mState->getBackgroundBlurRadius(); }
         Rect getDisplayFrame() const { return mState->getDisplayFrame(); }
+        bool hasBlurBehind() const { return mState->hasBlurBehind(); }
         const Region& getVisibleRegion() const { return mState->getVisibleRegion(); }
         const sp<GraphicBuffer>& getBuffer() const {
             return mState->getOutputLayer()->getLayerFE().getCompositionState()->buffer;
