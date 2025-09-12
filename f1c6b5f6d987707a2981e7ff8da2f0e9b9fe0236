@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "954827b8_676b4c8a",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 3091,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2025-09-12T14:50:42Z",
+      "side": 1,
+      "message": "Is it possible to have \u003e2 displays eg. via displayport output on dual screen devices?",
+      "revId": "f1c6b5f6d987707a2981e7ff8da2f0e9b9fe0236",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
