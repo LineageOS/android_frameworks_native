@@ -16,6 +16,24 @@
       "message": "Shouldn\u0027t the additions be here?",
       "revId": "93c7c2d74ae0d0e32437b2287db79e4ddd8a0a75",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "6baf042e_50221899",
+        "filename": "services/surfaceflinger/sysprop/api/SurfaceFlingerProperties-current.txt",
+        "patchSetId": 1
+      },
+      "lineNbr": 119,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2025-09-12T14:08:36Z",
+      "side": 1,
+      "message": "it\u0027s sorted alphabetically, and it\u0027s autogen",
+      "parentUuid": "8b22e48b_80f36862",
+      "revId": "93c7c2d74ae0d0e32437b2287db79e4ddd8a0a75",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
