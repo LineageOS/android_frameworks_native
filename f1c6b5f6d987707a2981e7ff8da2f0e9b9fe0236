@@ -16,6 +16,24 @@
       "message": "Is it possible to have \u003e2 displays eg. via displayport output on dual screen devices?",
       "revId": "f1c6b5f6d987707a2981e7ff8da2f0e9b9fe0236",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "4c54f0b4_57b7c421",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 3091,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2025-09-12T14:52:53Z",
+      "side": 1,
+      "message": "Yes it is, that\u0027s the problem of this patch, HWC is supposed to provide orientation for internal displays with the method above...",
+      "parentUuid": "954827b8_676b4c8a",
+      "revId": "f1c6b5f6d987707a2981e7ff8da2f0e9b9fe0236",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
