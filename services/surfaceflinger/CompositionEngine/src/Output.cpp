@@ -776,8 +776,10 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     // one, or create a new one if we do not.
     auto outputLayer = ensureOutputLayer(prevOutputLayerIndex, layerFE);
 
-    coverage.aboveBlurRequests += static_cast<int32_t>(layerFEState->backgroundBlurRadius > 0 ||
-                                                       !layerFEState->blurRegions.empty());
+    coverage.aboveBlurRequests += static_cast<int32_t>(layerFEState->backgroundBlurRadius > 0);
+    // Each blur region can contain a separate blur radius so we need to count each region
+    // as a separate request.
+    coverage.aboveBlurRequests += static_cast<int32_t>(layerFEState->blurRegions.size());
 
     // Store the layer coverage information into the layer state as some of it
     // is useful later.
