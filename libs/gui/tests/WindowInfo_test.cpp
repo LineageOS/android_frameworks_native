@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 
 #include <binder/Binder.h>
@@ -116,6 +117,34 @@ TEST(WindowInfo, Parcelling) {
     ASSERT_EQ(i.replaceTouchableRegionWithCrop, i2.replaceTouchableRegionWithCrop);
     ASSERT_EQ(i.touchableRegionCropHandle, i2.touchableRegionCropHandle);
     ASSERT_EQ(i.applicationInfo, i2.applicationInfo);
+}
+
+TEST(WindowInfo, ParcelNameTruncation) {
+    WindowInfo writeInfo;
+    // Construct a long string with a 3-byte UTF-8 character ('あ') to test truncation.
+    // 342 characters * 3 bytes/char = 1026 bytes, which is > 1024.
+    std::string_view c = "あ";
+    ASSERT_EQ(3u, c.size());
+    std::string longName;
+    longName.reserve(342 * 3);
+    for (int i = 0; i < 342; i++) {
+        longName.append(c);
+    }
+
+    ASSERT_GT(longName.length(), 1024u);
+    writeInfo.name = longName;
+
+    Parcel p;
+    ASSERT_EQ(OK, writeInfo.writeToParcel(&p));
+    p.setDataPosition(0);
+
+    WindowInfo readInfo;
+    ASSERT_EQ(OK, readInfo.readFromParcel(&p));
+
+    // The name should be truncated to the last valid character boundary at or before 1024 bytes.
+    // 1024 / 3 = 341.33. So, 341 characters should remain. 341 * 3 = 1023 bytes.
+    EXPECT_EQ(readInfo.name.length(), 1024u);
+    EXPECT_THAT(readInfo.name, testing::EndsWith("[TRUNC]"));
 }
 
 TEST(InputApplicationInfo, Parcelling) {
