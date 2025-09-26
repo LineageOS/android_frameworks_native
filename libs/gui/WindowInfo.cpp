@@ -26,6 +26,30 @@
 
 namespace android::gui {
 
+namespace {
+
+constexpr size_t kMaxBytesName = 1024;
+
+// Avoiding pulling in ICU here.
+status_t writeUtf8AsUtf16WithTruncation(Parcel* parcel, const std::string& str, size_t max_bytes) {
+    if (str.size() <= max_bytes) {
+        return parcel->writeUtf8AsUtf16(str);
+    }
+    std::string truncated;
+    truncated.reserve(max_bytes);
+    static constexpr std::string_view kTail = "[TRUNC]";
+    size_t truncated_length = max_bytes - kTail.size();
+    while (truncated_length > 0 &&
+           (static_cast<unsigned char>(str[truncated_length]) & 0xC0) == 0x80) {
+        truncated_length--;
+    }
+    truncated.append(str.substr(0, truncated_length));
+    truncated.append(kTail);
+    return parcel->writeUtf8AsUtf16(truncated);
+}
+
+} // namespace
+
 void WindowInfo::setInputConfig(ftl::Flags<InputConfig> config, bool value) {
     if (value) {
         inputConfig |= config;
@@ -97,7 +121,7 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
     status_t status = parcel->writeStrongBinder(token) ?:
         parcel->writeInt64(dispatchingTimeout.count()) ?:
         parcel->writeInt32(id) ?:
-        parcel->writeUtf8AsUtf16(name) ?:
+        writeUtf8AsUtf16WithTruncation(parcel, name, kMaxBytesName) ?:
         parcel->writeInt32(layoutParamsFlags.get()) ?:
         parcel->writeInt32(
                 static_cast<std::underlying_type_t<WindowInfo::Type>>(layoutParamsType)) ?:
