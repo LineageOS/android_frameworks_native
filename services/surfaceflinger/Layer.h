@@ -133,6 +133,7 @@ public:
         float cornerRadius;
         int backgroundBlurRadius;
         gui::WindowInfo inputInfo;
+        bool hasRequestedInputInfo;
         wp<Layer> touchableRegionCrop;
 
         ui::Dataspace dataspace;
@@ -522,7 +523,7 @@ public:
      * the InputDispatcher to do PID based occlusion detection.
      */
     bool needsInputInfo() const {
-        return (hasInputInfo() || hasBufferOrSidebandStream() || fillsColor()) && !mPotentialCursor;
+        return (hasRequestedInputInfo() || hasBufferOrSidebandStream() || fillsColor()) && !mPotentialCursor;
     }
 
     // Implements RefBase.
@@ -827,6 +828,11 @@ public:
      * Returns whether this layer has an explicitly set input-info.
      */
     bool hasInputInfo() const;
+
+    /**
+     * Returns whether this layer has requested input info.
+     */
+    bool hasRequestedInputInfo() const { return getDrawingState().hasRequestedInputInfo; }
 
     // Sets the gui::GameMode for the tree rooted at this layer. A layer in the tree inherits this
     // gui::GameMode unless it (or an ancestor) has GAME_MODE_METADATA.

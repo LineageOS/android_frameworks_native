@@ -194,6 +194,7 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
     mDrawingState.isTrustedOverlay = false;
     mDrawingState.dropInputMode = gui::DropInputMode::NONE;
     mDrawingState.dimmingEnabled = true;
+    mDrawingState.hasRequestedInputInfo = false;
     mDrawingState.defaultFrameRateCompatibility = FrameRateCompatibility::Default;
     mDrawingState.frameRateSelectionStrategy = FrameRateSelectionStrategy::Propagate;
 
@@ -2235,6 +2236,9 @@ void Layer::commitChildList() {
 
 void Layer::setInputInfo(const WindowInfo& info) {
     mDrawingState.inputInfo = info;
+    mDrawingState.hasRequestedInputInfo =
+            info.token != nullptr ||
+            info.inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL);
     mDrawingState.touchableRegionCrop =
             LayerHandle::getLayer(info.touchableRegionCropHandle.promote());
     mDrawingState.modified = true;
