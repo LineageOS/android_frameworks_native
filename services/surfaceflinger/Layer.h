@@ -183,6 +183,7 @@ public:
         int backgroundBlurRadius;
 
         gui::WindowInfo inputInfo;
+        bool hasRequestedInputInfo;
         wp<Layer> touchableRegionCrop;
 
         // dataspace is only used by BufferStateLayer and EffectLayer
@@ -606,7 +607,7 @@ public:
      * overrides this so we can generate input-info for Buffered layers that don't
      * have them (for input occlusion detection checks).
      */
-    virtual bool needsInputInfo() const { return hasInputInfo(); }
+    virtual bool needsInputInfo() const { return hasRequestedInputInfo(); }
 
     // Implements RefBase.
     void onFirstRef() override;
@@ -855,6 +856,11 @@ public:
      * Returns whether this layer has an explicitly set input-info.
      */
     bool hasInputInfo() const;
+
+    /**
+     * Returns whether this layer has requested input info.
+     */
+    bool hasRequestedInputInfo() const { return getDrawingState().hasRequestedInputInfo; }
 
     // Sets the GameMode for the tree rooted at this layer. A layer in the tree inherits this
     // GameMode unless it (or an ancestor) has GAME_MODE_METADATA.
