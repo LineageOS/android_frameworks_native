@@ -56,7 +56,7 @@ cc_library {
     ],
 
     export_shared_lib_headers: [
-        "android.hardware.graphics.common-V6-ndk",
+        "android.hardware.graphics.common-V7-ndk",
         "android.hardware.graphics.mapper@4.0",
         "libhidlbase",
     ],

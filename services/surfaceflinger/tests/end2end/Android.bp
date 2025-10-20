@@ -61,7 +61,7 @@ cc_test {
     ],
     static_libs: [
         "android.hardware.common-V2-ndk",
-        "android.hardware.graphics.common-V6-ndk",
+        "android.hardware.graphics.common-V7-ndk",
         "android.hardware.graphics.composer3-V3-ndk",
         "libgtest",
     ],
