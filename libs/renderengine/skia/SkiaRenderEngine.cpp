@@ -903,6 +903,10 @@ void SkiaRenderEngine::drawLayersInternal(
             SkAutoCanvasRestore acr(canvas, true);
             if (!roundRectClip.isEmpty()) {
                 canvas->clipRRect(roundRectClip, true);
+            } else {
+                // We need to clip bounds here since otherwise a client sending a bigger blur region
+                // enables the blur to "escape" the layer bounds which is very bad for security
+                canvas->clipRRect(bounds, true);
             }
 
             // TODO(b/182216890): Filter out empty layers earlier
