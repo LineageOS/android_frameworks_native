@@ -79,6 +79,25 @@ timespec timespecFromNanos(nsecs_t duration) {
 
 } // namespace
 
+inline int epoll_wait_with_timeout(int epfd, struct epoll_event* events, int maxevents,
+                                   const timespec* timeout) {
+    static bool useEpollWait = false;
+    if (!useEpollWait) {
+        int ret = epoll_pwait2(epfd, events, maxevents, timeout, nullptr);
+        if (ret == -1 && errno == ENOSYS) {
+            useEpollWait = true;
+        } else {
+            return ret;
+        }
+    }
+
+    int timeoutMs = -1;
+    if (timeout) {
+        timeoutMs = (timeout->tv_sec * 1000) + (timeout->tv_nsec / 1000000);
+    }
+    return epoll_wait(epfd, events, maxevents, timeoutMs);
+}
+
 namespace android {
 
 // Macros to include adapter info in log messages
@@ -1467,8 +1486,8 @@ status_t BufferReleaseReader::readBlocking(ReleaseCallbackId& outId, sp<Fence>& 
     epoll_event event{};
     int eventCount;
     do {
-        eventCount = epoll_pwait2(mEpollFd.get(), &event, 1 /*maxevents*/,
-                                  timespec ? &(*timespec) : nullptr, nullptr /*sigmask*/);
+        eventCount = epoll_wait_with_timeout(mEpollFd.get(), &event, 1 /*maxevents*/,
+                                             timespec ? &(*timespec) : nullptr);
     } while (eventCount == -1 && errno == EINTR);
 
     if (eventCount == -1) {
