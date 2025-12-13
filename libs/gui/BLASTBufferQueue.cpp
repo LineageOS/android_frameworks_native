@@ -1472,8 +1472,8 @@ status_t BufferReleaseReader::readBlocking(ReleaseCallbackId& outId, sp<Fence>& 
     } while (eventCount == -1 && errno == EINTR);
 
     if (eventCount == -1) {
-        ALOGE("epoll_wait error while waiting for buffer release. errno=%d message='%s'", errno,
-              strerror(errno));
+        //ALOGE("epoll_wait error while waiting for buffer release. errno=%d message='%s'", errno,
+        //      strerror(errno));
         return UNKNOWN_ERROR;
     }
 
