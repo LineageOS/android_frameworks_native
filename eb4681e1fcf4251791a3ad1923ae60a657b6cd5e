@@ -16,6 +16,23 @@
       "message": "Works correctly on my zflip5.",
       "revId": "eb4681e1fcf4251791a3ad1923ae60a657b6cd5e",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "3bbccbce_bc848938",
+        "filename": "services/surfaceflinger/sysprop/api/SurfaceFlingerProperties-current.txt",
+        "patchSetId": 2
+      },
+      "lineNbr": 124,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2026-01-09T14:17:09Z",
+      "side": 1,
+      "message": "Move it under here instead?",
+      "revId": "eb4681e1fcf4251791a3ad1923ae60a657b6cd5e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
