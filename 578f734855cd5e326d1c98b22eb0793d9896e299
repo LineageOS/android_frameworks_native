@@ -16,6 +16,23 @@
       "message": "Please give a try",
       "revId": "578f734855cd5e326d1c98b22eb0793d9896e299",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "e1d3d1e3_c072189b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29914
+      },
+      "writtenOn": "2026-01-09T14:11:00Z",
+      "side": 1,
+      "message": "It works correctly on my zflip5.",
+      "revId": "578f734855cd5e326d1c98b22eb0793d9896e299",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
