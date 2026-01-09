@@ -51,6 +51,24 @@
       "parentUuid": "3bbccbce_bc848938",
       "revId": "eb4681e1fcf4251791a3ad1923ae60a657b6cd5e",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "3bc4f8f3_8f1325dc",
+        "filename": "services/surfaceflinger/sysprop/api/SurfaceFlingerProperties-current.txt",
+        "patchSetId": 2
+      },
+      "lineNbr": 124,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2026-01-09T15:00:16Z",
+      "side": 1,
+      "message": "Ah I see, it\u0027s alphabetically sorted",
+      "parentUuid": "509a483f_1ab29384",
+      "revId": "eb4681e1fcf4251791a3ad1923ae60a657b6cd5e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
