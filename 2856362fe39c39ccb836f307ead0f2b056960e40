@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a243909b_d89142d1",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2026-01-09T15:02:48Z",
+      "side": 1,
+      "message": "Do you want this chain in 22.2 as well? The previous change is open there.",
+      "revId": "2856362fe39c39ccb836f307ead0f2b056960e40",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
