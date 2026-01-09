@@ -33,6 +33,24 @@
       "message": "Move it under here instead?",
       "revId": "eb4681e1fcf4251791a3ad1923ae60a657b6cd5e",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "509a483f_1ab29384",
+        "filename": "services/surfaceflinger/sysprop/api/SurfaceFlingerProperties-current.txt",
+        "patchSetId": 2
+      },
+      "lineNbr": 124,
+      "author": {
+        "id": 29914
+      },
+      "writtenOn": "2026-01-09T14:42:08Z",
+      "side": 1,
+      "message": "These files get auto generated as far as i know. And if you edit them by hand compilation fails.",
+      "parentUuid": "3bbccbce_bc848938",
+      "revId": "eb4681e1fcf4251791a3ad1923ae60a657b6cd5e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
