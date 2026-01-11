@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "79ccc851_9dd8bad2",
+        "filename": "libs/gui/BLASTBufferQueue.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 215,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-01-11T17:23:59Z",
+      "side": 1,
+      "message": "same here, ofc",
+      "range": {
+        "startLine": 215,
+        "startChar": 8,
+        "endLine": 215,
+        "endChar": 23
+      },
+      "revId": "a5d8f2737a7caca9a3d014eac08dc7e47f86ed12",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
