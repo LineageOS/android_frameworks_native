@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "ece7c9e8_69ffb9e3",
+        "filename": "libs/gui/BufferQueueProducer.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 1219,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-01-11T17:23:05Z",
+      "side": 1,
+      "message": "dequeue_timeout \u003e 0, maybe?",
+      "range": {
+        "startLine": 1219,
+        "startChar": 12,
+        "endLine": 1219,
+        "endChar": 27
+      },
+      "revId": "76b660908976d2d571fbae41d5df1e5b6cc66d55",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
