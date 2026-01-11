@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "24eb2ebf_a067614a",
+        "filename": "libs/gui/BLASTBufferQueue.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 214,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-01-11T16:21:27Z",
+      "side": 1,
+      "message": "Make it a generic prop by removing tegra and add to common lineage/sepolicy.",
+      "range": {
+        "startLine": 214,
+        "startChar": 27,
+        "endLine": 214,
+        "endChar": 71
+      },
+      "revId": "61df564485110573df136ea4b9d536314d8fbc74",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
