@@ -23,3 +23,19 @@ prop {
     access: Readonly
     prop_name: "ro.lib_gui.frame_event_history_size"
 }
+
+prop {
+    api_name: "buffer_dequeue_timeout_ms"
+    type: Integer
+    scope: Public
+    access: Readonly
+    prop_name: "ro.lib_gui.buffer_dequeue_timeout_ms"
+}
+
+prop {
+    api_name: "fence_timeout_ms"
+    type: Integer
+    scope: Public
+    access: Readonly
+    prop_name: "ro.lib_gui.fence_timeout_ms"
+}

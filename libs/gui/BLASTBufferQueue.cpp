@@ -44,6 +44,8 @@
 
 #include <android-base/thread_annotations.h>
 
+#include <LibGuiProperties.sysprop.h>
+
 #include <com_android_graphics_libgui_flags.h>
 
 using namespace com::android::graphics::libgui;
@@ -209,7 +211,14 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinati
 #endif //  COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
     // since the adapter is in the client process, set dequeue timeout
     // explicitly so that dequeueBuffer will block
-    mProducer->setDequeueTimeout(std::numeric_limits<int64_t>::max());
+    // Use shorter timeout on problematic devices for faster fallback
+    const uint32_t dequeue_timeout =
+            sysprop::LibGuiProperties::buffer_dequeue_timeout_ms().value_or(0);
+    if (dequeue_timeout > 0) {
+        mProducer->setDequeueTimeout((uint64_t)dequeue_timeout * 1000000.0);
+    } else {
+        mProducer->setDequeueTimeout(std::numeric_limits<int64_t>::max());
+    }
 
     static std::atomic<uint32_t> nextId = 0;
     mProducerId = nextId++;
