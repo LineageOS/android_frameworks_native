@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "54b1e505_3ddae32c",
+        "filename": "libs/gui/BLASTBufferQueue.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 214,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2026-01-11T19:09:00Z",
+      "side": 1,
+      "message": "This isn\u0027t really useful, this change doesn\u0027t have anything to do with lineage itself",
+      "range": {
+        "startLine": 214,
+        "startChar": 7,
+        "endLine": 214,
+        "endChar": 14
+      },
+      "revId": "1018e9cd88dfd26a1f9489dd778175d1c31d1f7d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "a37e44ac_60975c9b",
+        "filename": "libs/gui/BufferQueueProducer.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 1216,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2026-01-11T19:09:00Z",
+      "side": 1,
+      "message": "Same as the other file",
+      "range": {
+        "startLine": 1216,
+        "startChar": 11,
+        "endLine": 1216,
+        "endChar": 18
+      },
+      "revId": "1018e9cd88dfd26a1f9489dd778175d1c31d1f7d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
