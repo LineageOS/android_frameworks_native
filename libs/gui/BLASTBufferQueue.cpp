@@ -43,6 +43,7 @@
 #include <private/gui/ComposerServiceAIDL.h>
 
 #include <android-base/thread_annotations.h>
+#include <cutils/properties.h>
 
 #include <com_android_graphics_libgui_flags.h>
 
@@ -209,7 +210,12 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinati
 #endif //  COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
     // since the adapter is in the client process, set dequeue timeout
     // explicitly so that dequeueBuffer will block
-    mProducer->setDequeueTimeout(std::numeric_limits<int64_t>::max());
+    // LINEAGE: Use shorter timeout on Tegra devices for faster fallback
+    if (property_get_bool("ro.hardware.gralloc.tegra_dequeue_workaround", false)) {
+        mProducer->setDequeueTimeout(500000000LL);  // 500ms in nanoseconds
+    } else {
+        mProducer->setDequeueTimeout(std::numeric_limits<int64_t>::max());
+    }
 
     static std::atomic<uint32_t> nextId = 0;
     mProducerId = nextId++;

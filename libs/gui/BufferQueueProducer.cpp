@@ -1211,7 +1211,12 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         // Waiting here allows for two full buffers to be queued but not a
         // third. In the event that frames take varying time, this makes a
         // small trade-off in favor of latency rather than throughput.
-        lastQueuedFence->waitForever("Throttling EGL Production");
+        // LINEAGE: Use timeout instead of waitForever for Tegra X1 compatibility
+        // The NVIDIA driver may not signal fences during rotation, causing hangs
+        status_t err = lastQueuedFence->wait(1000);
+        if (err != OK) {
+            BQ_LOGW("queueBuffer: fence wait timed out or failed: %d", err);
+        }
     }
 
     return NO_ERROR;
