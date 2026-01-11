@@ -45,6 +45,8 @@
 
 #include <system/window.h>
 
+#include <android-base/properties.h>
+
 #include <com_android_graphics_libgui_flags.h>
 
 namespace android {
@@ -1211,7 +1213,18 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         // Waiting here allows for two full buffers to be queued but not a
         // third. In the event that frames take varying time, this makes a
         // small trade-off in favor of latency rather than throughput.
-        lastQueuedFence->waitForever("Throttling EGL Production");
+        // LINEAGE: Use timeout instead of waitForever on problematic devices
+        // Some drivers may not signal fences during rotation, causing hangs
+        uint32_t dequeue_timeout = GetPropertyInt("debug.sf.fence_timeout_ms", 0);
+        if (dequeue_timeout) {
+            status_t err = lastQueuedFence->wait(dequeue_timeout);
+            if (err != OK) {
+                BQ_LOGW("queueBuffer: fence wait timed out or failed: %d", err);
+            }
+        } else {
+            lastQueuedFence->waitForever("Throttling EGL Production");
+        }
+
     }
 
     return NO_ERROR;
