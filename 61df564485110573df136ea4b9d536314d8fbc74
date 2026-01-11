@@ -70,6 +70,30 @@
       },
       "revId": "61df564485110573df136ea4b9d536314d8fbc74",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d6f7f987_128b9eb4",
+        "filename": "libs/gui/BLASTBufferQueue.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 214,
+      "author": {
+        "id": 27741
+      },
+      "writtenOn": "2026-01-11T17:12:57Z",
+      "side": 1,
+      "message": "changed",
+      "parentUuid": "01cb3b1c_ad502d7b",
+      "range": {
+        "startLine": 214,
+        "startChar": 27,
+        "endLine": 214,
+        "endChar": 71
+      },
+      "revId": "61df564485110573df136ea4b9d536314d8fbc74",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
