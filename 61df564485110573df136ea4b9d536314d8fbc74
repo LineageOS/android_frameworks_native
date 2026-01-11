@@ -22,6 +22,30 @@
       },
       "revId": "61df564485110573df136ea4b9d536314d8fbc74",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "68c847cb_0cf6fb06",
+        "filename": "libs/gui/BLASTBufferQueue.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 214,
+      "author": {
+        "id": 35144
+      },
+      "writtenOn": "2026-01-11T16:53:03Z",
+      "side": 1,
+      "message": "After further discussion, this is confirmed to affect all devices using nvgpu userspace (including Shield devices like foster_tab), not just Nintendo Switch. I have moved the changes to:\n\n  - device/nvidia/tegra-common (nvgpu.mk) - property and soong config\n  - device/nvidia/sepolicy - property context\n\n  This applies to all Tegra devices using the proprietary graphics stack, but shouldn\u0027t go in common lineage repos since it\u0027s still nvidia-specific.\n\n  Related reviews:\n  - https://review.lineageos.org/c/LineageOS/android_device_nvidia_sepolicy/+/468225\n  - https://review.lineageos.org/c/LineageOS/android_device_nvidia_tegra-common/+/468226",
+      "parentUuid": "24eb2ebf_a067614a",
+      "range": {
+        "startLine": 214,
+        "startChar": 27,
+        "endLine": 214,
+        "endChar": 71
+      },
+      "revId": "61df564485110573df136ea4b9d536314d8fbc74",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
