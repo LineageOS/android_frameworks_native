@@ -46,6 +46,30 @@
       },
       "revId": "61df564485110573df136ea4b9d536314d8fbc74",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "01cb3b1c_ad502d7b",
+        "filename": "libs/gui/BLASTBufferQueue.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 214,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-01-11T16:55:33Z",
+      "side": 1,
+      "message": "Yes, but again, call it \"ro.hardware.gralloc.dequeue_workaround\" and move sepolicy related rules to lineage/sepolicy.",
+      "parentUuid": "68c847cb_0cf6fb06",
+      "range": {
+        "startLine": 214,
+        "startChar": 27,
+        "endLine": 214,
+        "endChar": 71
+      },
+      "revId": "61df564485110573df136ea4b9d536314d8fbc74",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
