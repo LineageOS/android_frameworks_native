@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "3e159577_7201fda5",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29914
+      },
+      "writtenOn": "2026-01-21T11:51:08Z",
+      "side": 1,
+      "message": "Works good on b5q.",
+      "revId": "918cea7cab7fd1d82b587fc2e5eb048ee320ecac",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
