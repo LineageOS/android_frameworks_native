@@ -425,6 +425,7 @@ TouchInputMapper::Parameters TouchInputMapper::computeParameters(
     if (parameters.orientationAware ||
         parameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN ||
         parameters.deviceType == Parameters::DeviceType::POINTER ||
+        parameters.deviceType == Parameters::DeviceType::TOUCH_PAD ||
         (parameters.deviceType == Parameters::DeviceType::TOUCH_NAVIGATION &&
          deviceContext.getAssociatedViewport())) {
         parameters.hasAssociatedDisplay = true;
@@ -481,6 +482,8 @@ TouchInputMapper::Parameters::DeviceType TouchInputMapper::computeDeviceType(
         deviceType = Parameters::DeviceType::TOUCH_SCREEN;
     } else if (deviceTypeString == "touchNavigation") {
         deviceType = Parameters::DeviceType::TOUCH_NAVIGATION;
+    } else if (deviceTypeString == "touchPad" && !deviceContext.isExternal()) {
+        deviceType = Parameters::DeviceType::TOUCH_PAD;
     } else if (deviceTypeString == "pointer") {
         deviceType = Parameters::DeviceType::POINTER;
     } else if (deviceTypeString != "default" && deviceTypeString != "") {
@@ -944,6 +947,9 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         }
     } else if (mParameters.deviceType == Parameters::DeviceType::TOUCH_NAVIGATION) {
         mSource = AINPUT_SOURCE_TOUCH_NAVIGATION | AINPUT_SOURCE_TOUCHPAD;
+        mDeviceMode = DeviceMode::NAVIGATION;
+    } else if (mParameters.deviceType == Parameters::DeviceType::TOUCH_PAD) {
+        mSource = AINPUT_SOURCE_TOUCHPAD;
         mDeviceMode = DeviceMode::NAVIGATION;
     } else {
         ALOGW("Touch device '%s' has invalid parameters or configuration.  The device will be "
