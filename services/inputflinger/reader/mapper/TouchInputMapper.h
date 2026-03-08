@@ -229,6 +229,7 @@ protected:
         enum class DeviceType {
             TOUCH_SCREEN,
             TOUCH_NAVIGATION,
+            TOUCH_PAD,
             POINTER,
 
             ftl_last = POINTER
