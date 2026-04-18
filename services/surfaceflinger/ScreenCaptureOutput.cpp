@@ -28,6 +28,11 @@
 namespace android {
 
 std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutputArgs args) {
+    if (args.buffer == nullptr) {
+        ALOGW("createScreenCaptureOutput called with null buffer; returning null");
+        return nullptr;
+    }
+
     std::shared_ptr<ScreenCaptureOutput> output = compositionengine::impl::createOutputTemplated<
             ScreenCaptureOutput, compositionengine::CompositionEngine,
             /* sourceCrop */ const Rect, ftl::Optional<DisplayIdVariant>,
@@ -37,6 +42,10 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
                                     args.colorProfile, args.layerAlpha, args.disableBlur,
                                     args.dimInGammaSpaceForEnhancedScreenshots,
                                     args.enableLocalTonemapping);
+    if (output == nullptr) {
+        ALOGW("createOutputTemplated returned null; aborting screen capture");
+        return nullptr;
+    }
     output->editState().isSecure = args.isSecure;
     output->editState().isProtected = args.buffer->getUsage() & GRALLOC_USAGE_PROTECTED;
     output->setCompositionEnabled(true);
