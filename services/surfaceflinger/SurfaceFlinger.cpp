@@ -8607,6 +8607,11 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                         .enableLocalTonemapping = enableLocalTonemapping,
                                         .debugName = args.debugName});
 
+        if (output == nullptr) {
+            ALOGW("screen capture aborted: createScreenCaptureOutput returned null");
+            return base::unexpected<int>(NO_MEMORY);
+        }
+
         const float colorSaturation = args.isGrayscale ? 0 : 1;
         compositionengine::CompositionRefreshArgs refreshArgs{
                 .outputs = {output},
