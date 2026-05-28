@@ -624,7 +624,7 @@ void OutputLayer::writeLutToHWC(HWC2::Layer* hwcLayer,
     Luts luts;
     // if outputIndependentState.luts is nullptr, it means we want to clear the LUTs
     // and we pass an empty Luts object to the HWC.
-    if (outputIndependentState.luts) {
+    if (outputIndependentState.luts && outputIndependentState.luts->isValid()) {
         auto& lutFileDescriptor = outputIndependentState.luts->getLutFileDescriptor();
         auto lutOffsets = outputIndependentState.luts->offsets;
         auto& lutProperties = outputIndependentState.luts->lutProperties;
