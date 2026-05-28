@@ -21,6 +21,7 @@
 #include <cutils/ashmem.h>
 #include <sys/mman.h>
 #include <algorithm>
+#include <optional>
 #include <ostream>
 #include <vector>
 
@@ -38,6 +39,7 @@ public:
 
         status_t writeToParcel(android::Parcel* parcel) const override;
         status_t readFromParcel(const android::Parcel* parcel) override;
+        size_t getElementsNeededPerChannel() const;
     };
 
     DisplayLuts() {}
@@ -56,7 +58,9 @@ public:
     status_t writeToParcel(android::Parcel* parcel) const override;
     status_t readFromParcel(const android::Parcel* parcel) override;
 
+    bool isValid() const;
     void dump(std::string& out) const;
+    size_t getMaxEndOffset() const;
 
     const base::unique_fd& getLutFileDescriptor() const { return fd; }
 

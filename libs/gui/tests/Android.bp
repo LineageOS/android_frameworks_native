@@ -69,6 +69,7 @@ cc_test {
         "CpuConsumer_test.cpp",
         "DisplayedContentSampling_test.cpp",
         "DisplayInfo_test.cpp",
+        "DisplayLuts_test.cpp",
         "EndToEndNativeInputTest.cpp",
         "FillBuffer.cpp",
         "FrameRateUtilsTest.cpp",

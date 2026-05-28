@@ -832,7 +832,7 @@ void OutputLayer::writeLutToHWC(HWC2::Layer* hwcLayer,
             : getState().generatedLuts ? getState().generatedLuts
                                        : nullptr;
 
-    if (sourceLuts) {
+    if (sourceLuts && sourceLuts->isValid()) {
         auto& lutFileDescriptor = sourceLuts->getLutFileDescriptor();
         auto lutOffsets = sourceLuts->offsets;
         auto& lutProperties = sourceLuts->lutProperties;
