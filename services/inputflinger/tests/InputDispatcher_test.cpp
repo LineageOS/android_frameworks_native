@@ -11978,6 +11978,28 @@ TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithBlockUntrustedOcclusionMod
     mTouchWindow->assertNoEvents();
 }
 
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithDeadConnection_BlocksTouch) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED);
+    w->releaseChannel();
+    mDispatcher->onWindowInfosChanged({{*w->getInfo(), *mTouchWindow->getInfo()}, {}, 0, 0});
+
+    touch();
+
+    mTouchWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithDeadConnectionAndOpacity_BlocksTouch) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.9f);
+    w->releaseChannel();
+    mDispatcher->onWindowInfosChanged({{*w->getInfo(), *mTouchWindow->getInfo()}, {}, 0, 0});
+
+    touch();
+
+    mTouchWindow->assertNoEvents();
+}
+
 TEST_F(InputDispatcherUntrustedTouchesTest,
        WindowWithBlockUntrustedOcclusionModeWithOpacityBelowThreshold_BlocksTouch) {
     const sp<FakeWindowHandle>& w =

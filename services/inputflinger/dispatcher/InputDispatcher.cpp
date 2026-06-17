@@ -5346,18 +5346,6 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
     std::vector<sp<WindowInfoHandle>> newHandles;
     for (const sp<WindowInfoHandle>& handle : windowInfoHandles) {
         const WindowInfo* info = handle->getInfo();
-        if (getConnectionLocked(handle->getToken()) == nullptr) {
-            const bool noInputChannel =
-                    info->inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL);
-            const bool canReceiveInput =
-                    !info->inputConfig.test(WindowInfo::InputConfig::NOT_TOUCHABLE) ||
-                    !info->inputConfig.test(WindowInfo::InputConfig::NOT_FOCUSABLE);
-            if (canReceiveInput && !noInputChannel) {
-                ALOGV("Window handle %s has no registered input channel",
-                      handle->getName().c_str());
-                continue;
-            }
-        }
 
         if (info->displayId != displayId) {
             ALOGE("Window %s updated by wrong display %s, should belong to display %s",
