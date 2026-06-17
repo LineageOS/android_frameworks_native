@@ -7682,6 +7682,61 @@ TEST_P(TransferTouchFixture, TransferTouch_MultipleWallpapers) {
                                 EXPECTED_WALLPAPER_FLAGS | MotionFlag::NO_FOCUS_CHANGE);
 }
 
+TEST_P(TransferTouchFixture, TransferTouch_ToWindowWithWallpaperWithoutInputChannel) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    // Create two windows that duplicate touches to wallpaper, and their respective wallpapers.
+    sp<FakeWindowHandle> firstWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "First Window",
+                                       ui::LogicalDisplayId::DEFAULT);
+    firstWindow->setDupTouchToWallpaper(true);
+
+    sp<FakeWindowHandle> secondWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Second Window",
+                                       ui::LogicalDisplayId::DEFAULT);
+    secondWindow->setDupTouchToWallpaper(true);
+
+    sp<FakeWindowHandle> wallpaper1 =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Wallpaper1",
+                                       ui::LogicalDisplayId::DEFAULT);
+    wallpaper1->setIsWallpaper(true);
+
+    sp<FakeWindowHandle> wallpaper2 =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Wallpaper2",
+                                       ui::LogicalDisplayId::DEFAULT);
+    wallpaper2->setIsWallpaper(true);
+    // Release the channel so this wallpaper window is in the hierarchy but has no input connection.
+    wallpaper2->releaseChannel();
+
+    // Add the windows to the dispatcher in top-to-bottom Z-order.
+    mDispatcher->onWindowInfosChanged(
+            {{*firstWindow->getInfo(), *wallpaper1->getInfo(), *secondWindow->getInfo(),
+              *wallpaper2->getInfo()},
+             {},
+             0,
+             0});
+
+    // Send touch DOWN to the first window (duplicated to wallpaper1).
+    mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
+                                                 AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ui::LogicalDisplayId::DEFAULT));
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+    wallpaper1->consumeMotionDown(ui::LogicalDisplayId::DEFAULT, EXPECTED_WALLPAPER_FLAGS);
+
+    // Transfer touch focus to the second window.
+    // The dispatcher finds wallpaper2 below secondWindow, which has a null connection.
+    // Ensure that wallpaper touch transfer handles the null connection safely without crashing.
+    TransferFunction f = GetParam();
+    const bool success = f(mDispatcher, firstWindow->getToken(), secondWindow->getToken());
+
+    // The first window and wallpaper1 get cancel, and the second window gets down.
+    ASSERT_TRUE(success);
+    firstWindow->consumeMotionCancel();
+    secondWindow->consumeMotionDown(ui::LogicalDisplayId::DEFAULT, MotionFlag::NO_FOCUS_CHANGE);
+    wallpaper1->consumeMotionCancel(ui::LogicalDisplayId::DEFAULT, EXPECTED_WALLPAPER_FLAGS);
+}
+
 // For the cases of single pointer touch and two pointers non-split touch, the api's
 // 'transferTouchGesture' and 'transferTouchOnDisplay' are equivalent in behaviour. They only differ
 // for the case where there are multiple pointers split across several windows.
@@ -12738,6 +12793,28 @@ protected:
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithBlockUntrustedOcclusionMode_BlocksTouch) {
     const sp<FakeWindowHandle>& w =
             getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED);
+    mDispatcher->onWindowInfosChanged({{*w->getInfo(), *mTouchWindow->getInfo()}, {}, 0, 0});
+
+    touch();
+
+    mTouchWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithDeadConnection_BlocksTouch) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED);
+    w->releaseChannel();
+    mDispatcher->onWindowInfosChanged({{*w->getInfo(), *mTouchWindow->getInfo()}, {}, 0, 0});
+
+    touch();
+
+    mTouchWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithDeadConnectionAndOpacity_BlocksTouch) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.9f);
+    w->releaseChannel();
     mDispatcher->onWindowInfosChanged({{*w->getInfo(), *mTouchWindow->getInfo()}, {}, 0, 0});
 
     touch();
