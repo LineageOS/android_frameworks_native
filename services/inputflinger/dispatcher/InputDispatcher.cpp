@@ -3659,19 +3659,6 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
         }
 
         const InputWindowInfo* info = handle->getInfo();
-        if ((getInputChannelLocked(handle->getToken()) == nullptr &&
-             info->portalToDisplayId == ADISPLAY_ID_NONE)) {
-            const bool noInputChannel =
-                    info->inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
-            const bool canReceiveInput =
-                    !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_TOUCHABLE) ||
-                    !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_FOCUSABLE);
-            if (canReceiveInput && !noInputChannel) {
-                ALOGV("Window handle %s has no registered input channel",
-                      handle->getName().c_str());
-                continue;
-            }
-        }
 
         if (info->displayId != displayId) {
             ALOGE("Window %s updated by wrong display %d, should belong to display %d",
