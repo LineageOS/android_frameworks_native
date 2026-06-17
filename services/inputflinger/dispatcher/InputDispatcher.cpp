@@ -3659,19 +3659,6 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
         }
 
         const InputWindowInfo* info = handle->getInfo();
-        if ((getInputChannelLocked(handle->getToken()) == nullptr &&
-             info->portalToDisplayId == ADISPLAY_ID_NONE)) {
-            const bool noInputChannel =
-                    info->inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
-            const bool canReceiveInput =
-                    !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_TOUCHABLE) ||
-                    !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_FOCUSABLE);
-            if (canReceiveInput && !noInputChannel) {
-                ALOGV("Window handle %s has no registered input channel",
-                      handle->getName().c_str());
-                continue;
-            }
-        }
 
         if (info->displayId != displayId) {
             ALOGE("Window %s updated by wrong display %d, should belong to display %d",
@@ -3730,9 +3717,17 @@ void InputDispatcher::setInputWindowsLocked(
     sp<InputWindowHandle> newFocusedWindowHandle = nullptr;
     bool foundHoveredWindow = false;
     for (const sp<InputWindowHandle>& windowHandle : getWindowHandlesLocked(displayId)) {
-        // Set newFocusedWindowHandle to the top most focused window instead of the last one
-        if (!newFocusedWindowHandle && windowHandle->getInfo()->hasFocus &&
-            windowHandle->getInfo()->visible) {
+        // Set newFocusedWindowHandle to the top most focused window instead of the last one.
+        // Windows without a registered input channel are kept for occlusion checks, but can not
+        // take focus.
+        const InputWindowInfo* info = windowHandle->getInfo();
+        const bool missingInputChannel =
+                getInputChannelLocked(windowHandle->getToken()) == nullptr &&
+                info->portalToDisplayId == ADISPLAY_ID_NONE &&
+                !(info->inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL) &&
+                (!(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_TOUCHABLE) ||
+                 !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_FOCUSABLE));
+        if (!newFocusedWindowHandle && info->hasFocus && info->visible && !missingInputChannel) {
             newFocusedWindowHandle = windowHandle;
         }
         if (windowHandle == mLastHoverWindowHandle) {
