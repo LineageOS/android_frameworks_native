@@ -64,8 +64,10 @@ using android::os::InputEventInjectionSync;
 namespace android::inputdispatcher {
 
 using namespace ftl::flag_operators;
+using android::WithSensorEvent;
 using testing::AllOf;
 using testing::Not;
+using testing::Optional;
 using testing::Pointee;
 using testing::UnorderedElementsAre;
 
@@ -16722,5 +16724,73 @@ INSTANTIATE_TEST_SUITE_P(
         [](const testing::TestParamInfo<InputDispatcherCrossDisplayGestureTestFixtureParam>& p) {
             return std::string{std::get<0>(p.param)};
         });
+
+TEST_F(InputDispatcherTest, FlushSensor_EraseTailElement) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Test Window",
+                                       ui::LogicalDisplayId::DEFAULT);
+    mDispatcher->setFocusedApplication(ui::LogicalDisplayId::DEFAULT, application);
+    window->setFocusable(true);
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
+    setFocusedWindow(window);
+    window->consumeFocusEvent(true);
+
+    // Freeze dispatch to ensure the events stay in the queue and get processed together when
+    // the 'flushSensor' call is issued.
+    mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/true);
+    // Notify key event at head of queue
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).deviceId(1).build());
+    // Notify sensor event at tail of queue
+    NotifySensorArgs sensorArgs(/*id=*/2, /*eventTime=*/20, /*deviceId=*/1, AINPUT_SOURCE_SENSOR,
+                                InputDeviceSensorType::ACCELEROMETER,
+                                InputDeviceSensorAccuracy::HIGH, /*accuracyChanged=*/false,
+                                /*hwTimestamp=*/20, {1.0f, 2.0f, 3.0f});
+    mDispatcher->notifySensor(sensorArgs);
+    // Erasing the tail sensor element
+    mDispatcher->flushSensor(/*deviceId=*/1, InputDeviceSensorType::ACCELEROMETER);
+    // Now we can unfreeze dispatch so that the dispatcher can process these.
+    mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
+
+    // Verify the sensor event was flushed and NOT dispatched to policy
+    std::optional<FakeInputDispatcherPolicy::SensorEvent> sensorEvent =
+            mFakePolicy->getSensorEvent(10ms);
+    ASSERT_THAT(sensorEvent,
+                Not(Optional(
+                        WithSensorEvent(/*deviceId=*/1, InputDeviceSensorType::ACCELEROMETER))));
+    // Verify the key event was preserved and dispatched to the window
+    window->consumeKeyDown(ui::LogicalDisplayId::DEFAULT);
+}
+
+TEST_F(InputDispatcherTest, FlushSensor_OnlyErasesMatchingDeviceIdAndSensorType) {
+    // Freeze dispatch to ensure the events stay in the queue and get processed together when
+    // the 'flushSensor' call is issued.
+    mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/true);
+    // Device 1, GYROSCOPE (Different sensorType)
+    NotifySensorArgs args3(/*id=*/3, /*eventTime=*/30, /*deviceId=*/1, AINPUT_SOURCE_SENSOR,
+                           InputDeviceSensorType::GYROSCOPE, InputDeviceSensorAccuracy::HIGH,
+                           /*accuracyChanged=*/false,
+                           /*hwTimestamp=*/30, {1.0f, 2.0f, 3.0f});
+    mDispatcher->notifySensor(args3);
+    mDispatcher->flushSensor(/*deviceId=*/1, InputDeviceSensorType::ACCELEROMETER);
+    // Now we can unfreeze dispatch so that the dispatcher can process these.
+    mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
+    std::optional<FakeInputDispatcherPolicy::SensorEvent> sensorEvent =
+            mFakePolicy->getSensorEvent(5s);
+    ASSERT_THAT(sensorEvent, Optional(WithSensorEvent(1, InputDeviceSensorType::GYROSCOPE)));
+
+    mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/true);
+    // Device 2, ACCELEROMETER (Different deviceId)
+    NotifySensorArgs args2(/*id=*/2, /*eventTime=*/20, /*deviceId=*/2, AINPUT_SOURCE_SENSOR,
+                           InputDeviceSensorType::ACCELEROMETER, InputDeviceSensorAccuracy::HIGH,
+                           /*accuracyChanged=*/false,
+                           /*hwTimestamp=*/20, {1.0f, 2.0f, 3.0f});
+    mDispatcher->notifySensor(args2);
+    mDispatcher->flushSensor(/*deviceId=*/1, InputDeviceSensorType::ACCELEROMETER);
+    mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
+    sensorEvent = mFakePolicy->getSensorEvent(5s);
+    ASSERT_THAT(sensorEvent, Optional(WithSensorEvent(2, InputDeviceSensorType::ACCELEROMETER)));
+}
 
 } // namespace android::inputdispatcher

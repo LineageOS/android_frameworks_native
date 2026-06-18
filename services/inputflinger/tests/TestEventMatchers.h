@@ -1073,4 +1073,17 @@ MATCHER_P(WithCaptureEnable, isEnable,
     return arg.request.isEnable() == isEnable;
 }
 
+// --- FakeInputDispatcherPolicy::SensorEvent ---
+
+MATCHER_P2(WithSensorEvent, expectedDeviceId, expectedSensorType,
+           "SensorEvent with specified deviceId and sensorType") {
+    bool match = arg.deviceId == expectedDeviceId && arg.sensorType == expectedSensorType;
+    if (!match) {
+        *result_listener << "expected deviceId " << expectedDeviceId << " and sensorType "
+                         << ftl::enum_string(expectedSensorType) << ", but got deviceId "
+                         << arg.deviceId << " and sensorType " << ftl::enum_string(arg.sensorType);
+    }
+    return match;
+}
+
 } // namespace android
