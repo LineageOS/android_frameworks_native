@@ -48,6 +48,14 @@ public:
     FakeInputDispatcherPolicy() = default;
     virtual ~FakeInputDispatcherPolicy() = default;
 
+    struct SensorEvent {
+        DeviceId deviceId;
+        InputDeviceSensorType sensorType;
+        InputDeviceSensorAccuracy accuracy;
+        nsecs_t timestamp;
+        std::vector<float> values;
+    };
+
     struct AnrResult {
         sp<IBinder> token{};
         std::optional<gui::Pid> pid{};
@@ -123,9 +131,13 @@ public:
     void assertKeyConsumedByPolicy(const ::testing::Matcher<KeyEvent>& matcher);
     void assertNoKeysConsumedByPolicy();
 
+    std::optional<SensorEvent> getSensorEvent(std::chrono::nanoseconds timeout);
+
 private:
     std::mutex mLock;
     std::unique_ptr<InputEvent> mFilteredEvent GUARDED_BY(mLock);
+    std::queue<SensorEvent> mSensorEvents GUARDED_BY(mLock);
+    std::condition_variable mNotifySensorEvent;
     sp<IBinder> mOnPointerDownToken GUARDED_BY(mLock);
     std::optional<NotifySwitchArgs> mLastNotifySwitch GUARDED_BY(mLock);
 

@@ -939,4 +939,17 @@ MATCHER_P(WithPolicyFlags, policyFlags, "InputEvent with specified policy flags"
     return arg.policyFlags == static_cast<uint32_t>(policyFlags);
 }
 
+// --- FakeInputDispatcherPolicy::SensorEvent ---
+
+MATCHER_P2(WithSensorEvent, expectedDeviceId, expectedSensorType,
+           "SensorEvent with specified deviceId and sensorType") {
+    bool match = arg.deviceId == expectedDeviceId && arg.sensorType == expectedSensorType;
+    if (!match) {
+        *result_listener << "expected deviceId " << expectedDeviceId << " and sensorType "
+                         << ftl::enum_string(expectedSensorType) << ", but got deviceId "
+                         << arg.deviceId << " and sensorType " << ftl::enum_string(arg.sensorType);
+    }
+    return match;
+}
+
 } // namespace android
