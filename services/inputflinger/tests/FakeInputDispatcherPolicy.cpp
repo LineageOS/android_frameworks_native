@@ -54,6 +54,13 @@ void FakeInputDispatcherPolicy::assertFilterInputEventWasNotCalled() {
     ASSERT_EQ(nullptr, mFilteredEvent);
 }
 
+std::optional<FakeInputDispatcherPolicy::SensorEvent> FakeInputDispatcherPolicy::getSensorEvent(
+        std::chrono::nanoseconds timeout) {
+    std::unique_lock lock(mLock);
+    base::ScopedLockAssertion assumeLocked(mLock);
+    return getItemFromStorageLockedInterruptible(timeout, mSensorEvents, lock, mNotifySensorEvent);
+}
+
 void FakeInputDispatcherPolicy::assertNotifySwitchWasCalled(const NotifySwitchArgs& args) {
     std::scoped_lock lock(mLock);
     ASSERT_TRUE(mLastNotifySwitch);
@@ -369,7 +376,11 @@ void FakeInputDispatcherPolicy::notifySensorEvent(int32_t deviceId,
                                                   InputDeviceSensorType sensorType,
                                                   InputDeviceSensorAccuracy accuracy,
                                                   nsecs_t timestamp,
-                                                  const std::vector<float>& values) {}
+                                                  const std::vector<float>& values) {
+    std::scoped_lock lock(mLock);
+    mSensorEvents.push({deviceId, sensorType, accuracy, timestamp, values});
+    mNotifySensorEvent.notify_all();
+}
 
 void FakeInputDispatcherPolicy::notifySensorAccuracy(int deviceId, InputDeviceSensorType sensorType,
                                                      InputDeviceSensorAccuracy accuracy) {}

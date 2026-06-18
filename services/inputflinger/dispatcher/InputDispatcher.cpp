@@ -2026,14 +2026,20 @@ bool InputDispatcher::flushSensor(int deviceId, InputDeviceSensorType sensorType
     }
     { // acquire lock
         std::scoped_lock _l(mLock);
-
-        for (auto it = mInboundQueue.begin(); it != mInboundQueue.end(); it++) {
-            std::shared_ptr<const EventEntry> entry = *it;
-            if (entry->type == EventEntry::Type::SENSOR) {
-                it = mInboundQueue.erase(it);
-                releaseInboundEventLocked(entry);
-            }
-        }
+        std::erase_if(mInboundQueue,
+                      [this, deviceId, sensorType](const std::shared_ptr<const EventEntry>& entry)
+                              REQUIRES(mLock) {
+                                  if (entry->type != EventEntry::Type::SENSOR) {
+                                      return false;
+                                  }
+                                  const auto& sensorEntry = static_cast<const SensorEntry&>(*entry);
+                                  if (sensorEntry.deviceId != deviceId ||
+                                      sensorEntry.sensorType != sensorType) {
+                                      return false;
+                                  }
+                                  releaseInboundEventLocked(entry);
+                                  return true;
+                              });
     }
     return true;
 }
