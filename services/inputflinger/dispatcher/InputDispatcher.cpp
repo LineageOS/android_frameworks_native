@@ -1541,12 +1541,21 @@ bool InputDispatcher::flushSensor(int deviceId, InputDeviceSensorType sensorType
     { // acquire lock
         std::scoped_lock _l(mLock);
 
-        for (auto it = mInboundQueue.begin(); it != mInboundQueue.end(); it++) {
+        for (auto it = mInboundQueue.begin(); it != mInboundQueue.end();) {
             std::shared_ptr<EventEntry> entry = *it;
-            if (entry->type == EventEntry::Type::SENSOR) {
-                it = mInboundQueue.erase(it);
-                releaseInboundEventLocked(entry);
+            if (entry->type != EventEntry::Type::SENSOR) {
+                ++it;
+                continue;
             }
+
+            const auto& sensorEntry = static_cast<const SensorEntry&>(*entry);
+            if (sensorEntry.deviceId != deviceId || sensorEntry.sensorType != sensorType) {
+                ++it;
+                continue;
+            }
+
+            it = mInboundQueue.erase(it);
+            releaseInboundEventLocked(entry);
         }
     }
     return true;
