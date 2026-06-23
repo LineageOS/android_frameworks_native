@@ -54,7 +54,7 @@ using LockResult = GraphicBufferMapper::LockResult;
 ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 
 static bool requireMapper4() {
-    return android_get_device_api_level() >= 36 && flags::require_gralloc4_or_newer();
+    return false;
 }
 
 void GraphicBufferMapper::preloadHal() {
