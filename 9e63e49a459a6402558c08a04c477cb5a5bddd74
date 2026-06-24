@@ -16,6 +16,23 @@
       "message": "@webgeek1234@gmail.com time to kill all these? or no?",
       "revId": "9e63e49a459a6402558c08a04c477cb5a5bddd74",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "f1d5d2c4_080ed514",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 14048
+      },
+      "writtenOn": "2026-06-24T07:31:44Z",
+      "side": 1,
+      "message": "It is possible for this to be used by mesa to expose all the desktop gl extensions. But that is currently not plumbed on that side. These can be brought back later if useful.",
+      "revId": "9e63e49a459a6402558c08a04c477cb5a5bddd74",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
