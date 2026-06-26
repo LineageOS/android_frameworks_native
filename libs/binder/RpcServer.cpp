@@ -352,7 +352,8 @@ status_t RpcServer::acceptConnection(
         RpcMutexLockGuard _l(mLock);
         RpcMaybeThread thread =
                 RpcMaybeThread(&RpcServer::establishConnection, sp<RpcServer>::fromExisting(this),
-                               std::move(clientFd), addr, addrLen, std::move(joinFn));
+                               std::move(clientFd), addr, addrLen, std::move(joinFn),
+                               /* incomingSetupFn */ nullptr);
         auto& threadRef = mConnectingThreads[thread.get_id()];
         threadRef = std::move(thread);
         rpcJoinIfSingleThreaded(threadRef);
@@ -430,7 +431,8 @@ size_t RpcServer::numUninitializedSessions() {
 void RpcServer::establishConnection(
         sp<RpcServer>&& server, RpcTransportFd clientFd, std::array<uint8_t, kRpcAddressSize> addr,
         size_t addrLen,
-        std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn) {
+        std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn,
+        std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& incomingSetupFn) {
     // mShutdownTrigger can only be cleared once connection threads have joined.
     // It must be set before this thread is started
     LOG_ALWAYS_FATAL_IF(server->mShutdownTrigger == nullptr);
@@ -599,8 +601,22 @@ void RpcServer::establishConnection(
         }
 
         if (incoming) {
-            LOG_ALWAYS_FATAL_IF(OK != session->addOutgoingConnection(std::move(client), true),
-                                "server state must already be initialized");
+            sp<RpcSession::RpcConnection> connection;
+            status_t incomingStatus =
+                    session->addOutgoingConnection(std::move(client), true, &connection);
+            if (incomingStatus == DEAD_OBJECT) {
+                ALOGE("Connection request to a dead session. Rejecting connection.");
+                return;
+            }
+            LOG_ALWAYS_FATAL_IF(OK != incomingStatus, "Adding outgoing connection failed with %s",
+                                statusToString(incomingStatus).c_str());
+            if (incomingSetupFn) {
+                incomingSetupFn(std::move(session),
+                                RpcSession::PreJoinSetupResult{
+                                        .connection = std::move(connection),
+                                        .status = OK,
+                                });
+            }
             return;
         }
 

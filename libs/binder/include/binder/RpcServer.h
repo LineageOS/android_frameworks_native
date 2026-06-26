@@ -260,7 +260,9 @@ private:
     static void establishConnection(
             sp<RpcServer>&& server, RpcTransportFd clientFd,
             std::array<uint8_t, kRpcAddressSize> addr, size_t addrLen,
-            std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn);
+            std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&& joinFn,
+            std::function<void(sp<RpcSession>&&, RpcSession::PreJoinSetupResult&&)>&&
+                    incomingSetupFn = nullptr);
     static status_t acceptSocketConnection(const RpcServer& server, RpcTransportFd* out);
     static status_t recvmsgSocketConnection(const RpcServer& server, RpcTransportFd* out);
 

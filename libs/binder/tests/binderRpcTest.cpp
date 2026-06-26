@@ -2925,6 +2925,118 @@ INSTANTIATE_TEST_SUITE_P(
         RpcTransportTlsKeyTest::PrintParamInfo);
 #endif // BINDER_RPC_TO_TRUSTY_TEST
 
+#ifdef BINDER_RPC_TO_TRUSTY_TEST
+TEST_P(BinderRpc, IncomingConnectionDos) {
+    if (socketType() != SocketType::TIPC) {
+        GTEST_SKIP() << "TIPC only test";
+    }
+
+    std::string port = trustyIpcPort(RPC_WIRE_PROTOCOL_VERSION);
+
+    // 1. Open TIPC channel A
+    unique_fd fdA(tipc_connect(kTrustyIpcDevice, port.c_str()));
+    ASSERT_TRUE(fdA.ok());
+
+    // 2. Standard new-session handshake on A (sessionIdSize = 0)
+    RpcConnectionHeader header;
+    header.version = RPC_WIRE_PROTOCOL_VERSION;
+    header.options = 0; // outgoing for client, incoming for server
+    header.fileDescriptorTransportMode =
+            static_cast<uint8_t>(RpcSession::FileDescriptorTransportMode::TRUSTY);
+    memset(header.reservered, 0, sizeof(header.reservered));
+    header.sessionIdSize = 0;
+
+    ASSERT_EQ(write(fdA.get(), &header, sizeof(header)), (ssize_t)sizeof(header));
+    RpcNewSessionResponse resp;
+    ASSERT_EQ(read(fdA.get(), &resp, sizeof(resp)), (ssize_t)sizeof(resp));
+
+    RpcOutgoingConnectionInit init;
+    memset(&init, 0, sizeof(init));
+    memcpy(init.msg, RPC_CONNECTION_INIT_OKAY, 4);
+    ASSERT_EQ(write(fdA.get(), &init, sizeof(init)), (ssize_t)sizeof(init));
+
+    // 3. Send RPC_SPECIAL_TRANSACT_GET_SESSION_ID on A
+    RpcWireHeader wireHeader;
+    memset(&wireHeader, 0, sizeof(wireHeader));
+    wireHeader.command = RPC_COMMAND_TRANSACT;
+    wireHeader.bodySize = sizeof(RpcWireTransaction);
+
+    RpcWireTransaction wireTx = {}; // zero initialize
+    wireTx.address.options = 0;
+    wireTx.address.address = RPC_SPECIAL_TRANSACTION_ADDRESS;
+    wireTx.code = RPC_SPECIAL_TRANSACT_GET_SESSION_ID;
+    wireTx.flags = 0;
+    wireTx.asyncNumber = 0;
+    wireTx.parcelDataSize = 0;
+
+    uint8_t msgA[sizeof(RpcWireHeader) + sizeof(RpcWireTransaction)];
+    memcpy(msgA, &wireHeader, sizeof(RpcWireHeader));
+    memcpy(msgA + sizeof(RpcWireHeader), &wireTx, sizeof(RpcWireTransaction));
+    ASSERT_EQ(write(fdA.get(), msgA, sizeof(msgA)), (ssize_t)sizeof(msgA));
+
+    // Read the entire reply message at once (TIPC is message-based)
+    uint8_t replyBuf[256];
+    ssize_t bytesRead = read(fdA.get(), replyBuf, sizeof(replyBuf));
+    ASSERT_GT(bytesRead, 0) << "read failed: " << strerror(errno);
+    ASSERT_GE((size_t)bytesRead,
+              sizeof(RpcWireHeader) + RpcWireReply::wireSize(RPC_WIRE_PROTOCOL_VERSION));
+
+    RpcWireHeader* replyHeader = reinterpret_cast<RpcWireHeader*>(replyBuf);
+    ASSERT_EQ(replyHeader->command, RPC_COMMAND_REPLY);
+
+    RpcWireReply* replyInfo = reinterpret_cast<RpcWireReply*>(replyBuf + sizeof(RpcWireHeader));
+    ASSERT_EQ(replyInfo->status, OK);
+
+    size_t replyWireSize = RpcWireReply::wireSize(RPC_WIRE_PROTOCOL_VERSION);
+    size_t dataSize = replyHeader->bodySize - replyWireSize;
+    ASSERT_EQ((size_t)bytesRead, sizeof(RpcWireHeader) + replyWireSize + dataSize);
+
+    // The session ID is the byte array in the parcel.
+    // In Android Parcel, a byte vector is written as:
+    // int32_t size (32 bytes)
+    // 32 bytes data.
+    // So session ID starts at offset 4.
+    uint8_t* parcelData = replyBuf + sizeof(RpcWireHeader) + replyWireSize;
+    ASSERT_GE(dataSize, 4u + 32u);
+    std::vector<uint8_t> sessionId(parcelData + 4, parcelData + 4 + 32);
+
+    // 4. Repeatedly open INCOMING connections and holding onto some of them
+    // to make sure this pattern works as expected.
+    // Then close the connectios after KEEP_FDS_NUM.
+    // The service should be resilient and accept new tipc_connect requests
+    // even though it will refuse to add more incoming connections
+    constexpr int KEEP_FDS_NUM = 5;
+    constexpr int CONN_ITERATIONS = 500;
+    std::vector<unique_fd> fds;
+    fds.reserve(KEEP_FDS_NUM);
+    for (int i = 0; i < CONN_ITERATIONS; i++) {
+        unique_fd fdB(tipc_connect(kTrustyIpcDevice, port.c_str()));
+        EXPECT_TRUE(fdB.ok()) << "Failed to connect on loop " << i;
+        if (!fdB.ok()) {
+            continue;
+        }
+
+        RpcConnectionHeader header2;
+        header2.version = RPC_WIRE_PROTOCOL_VERSION;
+        header2.options = RPC_CONNECTION_OPTION_INCOMING;
+        header2.fileDescriptorTransportMode =
+                static_cast<uint8_t>(RpcSession::FileDescriptorTransportMode::TRUSTY);
+        memset(header2.reservered, 0, sizeof(header2.reservered));
+        header2.sessionIdSize = sessionId.size();
+
+        uint8_t msgB[sizeof(RpcConnectionHeader) + 32];
+        memcpy(msgB, &header2, sizeof(RpcConnectionHeader));
+        memcpy(msgB + sizeof(RpcConnectionHeader), sessionId.data(), 32);
+        EXPECT_EQ(write(fdB.get(), msgB, sizeof(msgB)), (ssize_t)sizeof(msgB));
+
+        // Keep a few FDs, close the rest to trigger the leak!
+        if (i < KEEP_FDS_NUM) {
+            fds.push_back(std::move(fdB));
+        }
+    }
+}
+#endif // BINDER_RPC_TO_TRUSTY_TEST
+
 } // namespace android
 
 int main(int argc, char** argv) {

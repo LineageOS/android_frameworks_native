@@ -780,24 +780,36 @@ status_t RpcSession::initShutdownTrigger() {
     return OK;
 }
 
-status_t RpcSession::addOutgoingConnection(std::unique_ptr<RpcTransport> rpcTransport, bool init) {
+status_t RpcSession::addOutgoingConnection(std::unique_ptr<RpcTransport> rpcTransport, bool init,
+                                           sp<RpcConnection>* outConnection) {
     sp<RpcConnection> connection = sp<RpcConnection>::make();
-    {
-        RpcMutexLockGuard _l(mMutex);
-        connection->rpcTransport = std::move(rpcTransport);
-        connection->exclusiveTid = binder::os::GetThreadId();
-        mConnections.mOutgoing.push_back(connection);
-    }
+    connection->rpcTransport = std::move(rpcTransport);
+    connection->exclusiveTid = binder::os::GetThreadId();
 
     status_t status = OK;
     if (init) {
         status =
                 mRpcBinderState->sendConnectionInit(connection, sp<RpcSession>::fromExisting(this));
+        if (status != OK) {
+            if (outConnection != nullptr) {
+                *outConnection = nullptr;
+            }
+            return status;
+        }
+    }
+
+    {
+        RpcMutexLockGuard _l(mMutex);
+        mConnections.mOutgoing.push_back(connection);
     }
 
     clearConnectionTid(connection);
 
-    return status;
+    if (outConnection != nullptr) {
+        *outConnection = connection;
+    }
+
+    return OK;
 }
 
 bool RpcSession::setForServer(const wp<RpcServer>& server, const wp<EventListener>& eventListener,
