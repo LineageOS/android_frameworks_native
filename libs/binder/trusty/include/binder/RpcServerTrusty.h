@@ -142,6 +142,7 @@ private:
     struct ChannelContext {
         sp<RpcSession> session;
         sp<RpcSession::RpcConnection> connection;
+        bool isIncoming = true;
     };
 
     static int handleConnect(const tipc_port* port, handle_t chan, const trusty_peer_id* peer,

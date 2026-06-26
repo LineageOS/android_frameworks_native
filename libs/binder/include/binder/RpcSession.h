@@ -319,14 +319,15 @@ private:
                                                 bool incoming);
     [[nodiscard]] status_t addIncomingConnection(std::unique_ptr<RpcTransport> rpcTransport);
     [[nodiscard]] status_t addOutgoingConnection(std::unique_ptr<RpcTransport> rpcTransport,
-                                                 bool init);
+                                                 bool init,
+                                                 sp<RpcConnection>* outConnection = nullptr);
+    [[nodiscard]] bool removeIncomingConnection(const sp<RpcConnection>& connection);
     [[nodiscard]] bool setForServer(const wp<RpcServer>& server,
                                     const wp<RpcSession::EventListener>& eventListener,
                                     const std::vector<uint8_t>& sessionId,
                                     const sp<IBinder>& sessionSpecificRoot);
     sp<RpcConnection> assignIncomingConnectionToThisThread(
             std::unique_ptr<RpcTransport> rpcTransport);
-    [[nodiscard]] bool removeIncomingConnection(const sp<RpcConnection>& connection);
     void clearConnectionTid(const sp<RpcConnection>& connection);
 
     [[nodiscard]] status_t initShutdownTrigger();
