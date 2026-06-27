@@ -1,9 +1,0 @@
-package: "com.android.graphics.libui.flags"
-container: "system"
-
-flag {
-  name: "require_gralloc4_or_newer"
-  namespace: "core_graphics"
-  description: "This flag drops gralloc 2/3, which are no longer supported"
-  bug: "370784101"
-}

@@ -30,26 +30,6 @@ license {
     ],
 }
 
-aconfig_declarations {
-    name: "libui_flags",
-    package: "com.android.graphics.libui.flags",
-    container: "system",
-    srcs: ["libui_flags.aconfig"],
-}
-
-cc_aconfig_library {
-    name: "libui_flags_cc",
-    host_supported: true,
-    vendor_available: true,
-    min_sdk_version: "29",
-    apex_available: [
-        "//apex_available:platform",
-        "com.android.media.swcodec",
-        "test_com.android.media.swcodec",
-    ],
-    aconfig_declarations: "libui_flags",
-}
-
 cc_library_headers {
     name: "libui_fuzzableDataspaces_headers",
     export_include_dirs: ["include/ui/fuzzer/"],
@@ -199,7 +179,6 @@ cc_library_shared {
         "libutils",
         "liblog",
         "libvndksupport",
-        "libaconfig_storage_read_api_cc",
     ],
 
     export_shared_lib_headers: [
@@ -217,7 +196,6 @@ cc_library_shared {
 
     whole_static_libs: [
         "libui-types",
-        "libui_flags_cc",
     ],
 
     // bufferhub is not used when building libgui for vendors
