@@ -16,6 +16,24 @@
       "message": "wouldn\u0027t it be better to just disable it via aconfig on vendor/lineage?",
       "revId": "44b0db5fbbce5f9f65b2e1cee86a3b611235e211",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "8efe8995_9052733d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 34512
+      },
+      "writtenOn": "2026-06-28T07:34:08Z",
+      "side": 1,
+      "message": "idk if its in the correct format for that, but please try if u can",
+      "parentUuid": "36198ad6_bb89f6a4",
+      "revId": "44b0db5fbbce5f9f65b2e1cee86a3b611235e211",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
