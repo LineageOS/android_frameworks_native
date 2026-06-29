@@ -66,12 +66,19 @@ sp<RpcServerTrusty> RpcServerTrusty::make(
     return srv;
 }
 
+RpcServerTrusty::~RpcServerTrusty() {
+    if (mTipcPortCtx != nullptr) {
+        tipc_remove_service(mTipcPortCtx);
+    }
+}
+
 RpcServerTrusty::RpcServerTrusty(std::unique_ptr<RpcTransportCtx> ctx, std::string&& portName,
                                  std::shared_ptr<const PortAcl>&& portAcl, size_t msgMaxSize,
                                  size_t msgQueueLen)
       : mRpcServer(makeRpcServer(std::move(ctx))),
         mPortName(std::move(portName)),
-        mPortAcl(std::move(portAcl)) {
+        mPortAcl(std::move(portAcl)),
+        mTipcPortCtx(nullptr) {
     mTipcPort.name = mPortName.c_str();
     mTipcPort.msg_max_size = msgMaxSize;
     mTipcPort.msg_queue_len = msgQueueLen;

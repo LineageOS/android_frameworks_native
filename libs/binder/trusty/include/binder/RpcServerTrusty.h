@@ -47,6 +47,8 @@ public:
         const void* extraData;
     };
 
+    ~RpcServerTrusty();
+
     /**
      * Creates an RPC server listening on the given port and adds it to the
      * Trusty handle set at |handleSet|.
