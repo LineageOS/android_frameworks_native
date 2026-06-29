@@ -45,7 +45,19 @@ struct tipc_srv_ops {
     void (*on_channel_cleanup)(void* ctx);
 };
 
+struct tipc_port_ctx;
+
 static inline int tipc_add_service(struct tipc_hset*, const struct tipc_port*, uint32_t, uint32_t,
                                    const struct tipc_srv_ops*) {
+    return 0;
+}
+
+static inline int tipc_add_service_ports(struct tipc_hset*, const struct tipc_port*, uint32_t,
+                                         uint32_t, const struct tipc_srv_ops*,
+                                         struct tipc_port_ctx**) {
+    return 0;
+}
+
+static inline int tipc_remove_service(struct tipc_port_ctx*) {
     return 0;
 }

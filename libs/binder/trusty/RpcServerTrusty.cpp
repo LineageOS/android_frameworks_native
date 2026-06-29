@@ -50,7 +50,8 @@ sp<RpcServerTrusty> RpcServerTrusty::make(
         return nullptr;
     }
 
-    int rc = tipc_add_service(handleSet, &srv->mTipcPort, 1, 0, &kTipcOps);
+    int rc =
+            tipc_add_service_ports(handleSet, &srv->mTipcPort, 1, 0, &kTipcOps, &srv->mTipcPortCtx);
     if (rc != NO_ERROR) {
         ALOGE("Failed to create RpcServerTrusty: can't add service: %d", rc);
         return nullptr;
@@ -58,11 +59,18 @@ sp<RpcServerTrusty> RpcServerTrusty::make(
     return srv;
 }
 
+RpcServerTrusty::~RpcServerTrusty() {
+    if (mTipcPortCtx != nullptr) {
+        tipc_remove_service(mTipcPortCtx);
+    }
+}
+
 RpcServerTrusty::RpcServerTrusty(std::unique_ptr<RpcTransportCtx> ctx, std::string&& portName,
                                  std::shared_ptr<const PortAcl>&& portAcl, size_t msgMaxSize)
       : mRpcServer(makeRpcServer(std::move(ctx))),
         mPortName(std::move(portName)),
-        mPortAcl(std::move(portAcl)) {
+        mPortAcl(std::move(portAcl)),
+        mTipcPortCtx(nullptr) {
     mTipcPort.name = mPortName.c_str();
     mTipcPort.msg_max_size = msgMaxSize;
     mTipcPort.msg_queue_len = 6; // Three each way
