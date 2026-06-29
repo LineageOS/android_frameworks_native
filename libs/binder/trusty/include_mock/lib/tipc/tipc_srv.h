@@ -69,3 +69,8 @@ static inline int tipc_add_connection(struct tipc_port_ctx*, handle_t, const str
 static inline struct tipc_hset* tipc_get_hset(struct tipc_port_ctx*) {
     return nullptr;
 }
+
+static inline int tipc_remove_service(struct tipc_port_ctx*) {
+    return 0;
+}
+
