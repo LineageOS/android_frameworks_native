@@ -153,6 +153,8 @@ protected:
                  nsecs_t appEarlyDuration, nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration,
                  nsecs_t hwcMinWorkDuration);
 
+    virtual std::optional<nsecs_t> getDurationOverride(const char* basePropName, int fps) const;
+
 private:
     VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
 
