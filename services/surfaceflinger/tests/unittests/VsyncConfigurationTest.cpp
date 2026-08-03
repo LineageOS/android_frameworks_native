@@ -20,7 +20,9 @@
 #include <gmock/gmock.h>
 #include <log/log.h>
 #include <chrono>
+#include <string>
 #include <thread>
+#include <unordered_map>
 
 #include <scheduler/Time.h>
 
@@ -45,6 +47,27 @@ public:
     TestableWorkDuration(Fps currentFps, Duration minSfDuration, Duration maxSfDuration,
                          Duration appDuration)
           : impl::WorkDuration(currentFps, minSfDuration, maxSfDuration, appDuration) {}
+};
+
+class TestableWorkDurationWithFpsOverrides : public impl::WorkDuration {
+public:
+    TestableWorkDurationWithFpsOverrides(Fps currentFps, nsecs_t sfDuration, nsecs_t appDuration,
+                                         nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
+                                         nsecs_t sfEarlyGlDuration, nsecs_t appEarlyGlDuration,
+                                         std::unordered_map<std::string, nsecs_t> overrides)
+          : impl::WorkDuration(currentFps, sfDuration, appDuration, sfEarlyDuration,
+                               appEarlyDuration, sfEarlyGlDuration, appEarlyGlDuration, 0),
+            mOverrides(std::move(overrides)) {}
+
+protected:
+    std::optional<nsecs_t> getDurationOverride(const char* basePropName, int fps) const override {
+        const auto it = mOverrides.find(std::string(basePropName) + '.' + std::to_string(fps));
+        if (it == mOverrides.end()) return std::nullopt;
+        return it->second;
+    }
+
+private:
+    const std::unordered_map<std::string, nsecs_t> mOverrides;
 };
 
 class WorkDurationTest : public testing::Test {
@@ -201,6 +224,28 @@ TEST_F(WorkDurationTest, workDurationIsARange) {
 
     EXPECT_EQ(offsets.earlyGpu.sfWorkDuration, 20'500'000ns);
     EXPECT_EQ(offsets.earlyGpu.appWorkDuration, 16'000'000ns);
+}
+
+TEST_F(WorkDurationTest, getConfigsForRefreshRate_perFpsOverrides) {
+    TestableWorkDurationWithFpsOverrides
+            workDuration(60_Hz, 10'500'000, 20'500'000, 16'000'000, 16'500'000, 13'500'000,
+                         21'000'000,
+                         {{"debug.sf.late.sf.duration.90", 7'000'000},
+                          {"debug.sf.earlyGl.app.duration.90", 8'000'000}});
+
+    auto offsets = workDuration.getConfigsForRefreshRate(60_Hz);
+    EXPECT_EQ(offsets.late.sfWorkDuration, 10'500'000ns);
+    EXPECT_EQ(offsets.late.appWorkDuration, 20'500'000ns);
+    EXPECT_EQ(offsets.earlyGpu.appWorkDuration, 21'000'000ns);
+
+    offsets = workDuration.getConfigsForRefreshRate(90_Hz);
+    EXPECT_EQ(offsets.late.sfWorkDuration, 7'000'000ns);
+    EXPECT_EQ(offsets.late.sfOffset, 4'111'111);
+    EXPECT_EQ(offsets.earlyGpu.appWorkDuration, 8'000'000ns);
+    EXPECT_EQ(offsets.late.appWorkDuration, 20'500'000ns);
+    EXPECT_EQ(offsets.early.sfWorkDuration, 16'000'000ns);
+    EXPECT_EQ(offsets.early.appWorkDuration, 16'500'000ns);
+    EXPECT_EQ(offsets.earlyGpu.sfWorkDuration, 13'500'000ns);
 }
 
 class TestablePhaseOffsets : public impl::PhaseOffsets {

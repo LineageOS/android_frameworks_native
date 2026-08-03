@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cinttypes>
 #include <optional>
+#include <string>
 
 #include <cutils/properties.h>
 #include <log/log.h>
@@ -286,7 +287,14 @@ nsecs_t appDurationToOffset(std::chrono::nanoseconds appDuration,
 }
 } // namespace
 
+std::optional<nsecs_t> WorkDuration::getDurationOverride(const char* basePropName, int fps) const {
+    const std::string name = std::string(basePropName) + '.' + std::to_string(fps);
+    return getProperty(name.c_str());
+}
+
 VsyncConfigSet WorkDuration::constructOffsets(nsecs_t vsyncDuration) const {
+    const int fps = Fps::fromPeriodNsecs(vsyncDuration).getIntValue();
+
     const auto sfDurationFixup = [vsyncDuration](nsecs_t duration) {
         return duration == -1 ? std::chrono::nanoseconds(vsyncDuration) - 1ms
                               : std::chrono::nanoseconds(duration);
@@ -297,12 +305,19 @@ VsyncConfigSet WorkDuration::constructOffsets(nsecs_t vsyncDuration) const {
                               : std::chrono::nanoseconds(duration);
     };
 
-    const auto sfEarlyDuration = sfDurationFixup(mSfEarlyDuration);
-    const auto appEarlyDuration = appDurationFixup(mAppEarlyDuration);
-    const auto sfEarlyGpuDuration = sfDurationFixup(mSfEarlyGpuDuration);
-    const auto appEarlyGpuDuration = appDurationFixup(mAppEarlyGpuDuration);
-    const auto sfDuration = sfDurationFixup(mSfDuration);
-    const auto appDuration = appDurationFixup(mAppDuration);
+    const auto sfEarlyDuration = sfDurationFixup(
+            getDurationOverride("debug.sf.early.sf.duration", fps).value_or(mSfEarlyDuration));
+    const auto appEarlyDuration = appDurationFixup(
+            getDurationOverride("debug.sf.early.app.duration", fps).value_or(mAppEarlyDuration));
+    const auto sfEarlyGpuDuration = sfDurationFixup(
+            getDurationOverride("debug.sf.earlyGl.sf.duration", fps).value_or(mSfEarlyGpuDuration));
+    const auto appEarlyGpuDuration = appDurationFixup(
+            getDurationOverride("debug.sf.earlyGl.app.duration", fps)
+                    .value_or(mAppEarlyGpuDuration));
+    const auto sfDuration = sfDurationFixup(
+            getDurationOverride("debug.sf.late.sf.duration", fps).value_or(mSfDuration));
+    const auto appDuration = appDurationFixup(
+            getDurationOverride("debug.sf.late.app.duration", fps).value_or(mAppDuration));
 
     return {
             .early =
@@ -354,10 +369,14 @@ VsyncConfigSet WorkDuration::constructOffsets(nsecs_t vsyncDuration) const {
 WorkDuration::WorkDuration(Fps currentRefreshRate)
       : WorkDuration(currentRefreshRate, getProperty("debug.sf.late.sf.duration").value_or(-1),
                      getProperty("debug.sf.late.app.duration").value_or(-1),
-                     getProperty("debug.sf.early.sf.duration").value_or(mSfDuration),
-                     getProperty("debug.sf.early.app.duration").value_or(mAppDuration),
-                     getProperty("debug.sf.earlyGl.sf.duration").value_or(mSfDuration),
-                     getProperty("debug.sf.earlyGl.app.duration").value_or(mAppDuration),
+                     getProperty("debug.sf.early.sf.duration")
+                             .value_or(getProperty("debug.sf.late.sf.duration").value_or(-1)),
+                     getProperty("debug.sf.early.app.duration")
+                             .value_or(getProperty("debug.sf.late.app.duration").value_or(-1)),
+                     getProperty("debug.sf.earlyGl.sf.duration")
+                             .value_or(getProperty("debug.sf.late.sf.duration").value_or(-1)),
+                     getProperty("debug.sf.earlyGl.app.duration")
+                             .value_or(getProperty("debug.sf.late.app.duration").value_or(-1)),
                      getProperty("debug.sf.hwc.min.duration").value_or(0)) {
     validateSysprops();
 }
