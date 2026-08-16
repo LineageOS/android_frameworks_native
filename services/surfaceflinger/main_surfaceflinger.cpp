@@ -35,6 +35,11 @@
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceFlingerProperties.h"
 
+#ifdef REGISTER_DISPLAYSERVICE
+#include <displayservice/DisplayService.h>
+#include <lineage/frameworks/displayservice/1.0/IDisplayService.h>
+#endif
+
 using namespace android;
 
 static status_t startGraphicsAllocatorService() {
@@ -57,6 +62,21 @@ static status_t startGraphicsAllocatorService() {
 
     return OK;
 }
+
+#ifdef REGISTER_DISPLAYSERVICE
+static void startDisplayService() {
+    using lineage::frameworks::displayservice::V1_0::implementation::DisplayService;
+    using lineage::frameworks::displayservice::V1_0::IDisplayService;
+
+    sp<IDisplayService> displayservice = sp<DisplayService>::make();
+    status_t err = displayservice->registerAsService();
+
+    // b/141930622
+    if (err != OK) {
+        ALOGE("Did not register (deprecated) IDisplayService service.");
+    }
+}
+#endif
 
 int main() {
     signal(SIGPIPE, SIG_IGN);
@@ -135,6 +155,10 @@ int main() {
     }
     sm->addService(String16("SurfaceFlingerAIDL"), composerAIDL, false,
                    IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
+
+#ifdef REGISTER_DISPLAYSERVICE
+    startDisplayService(); // dependency on SF getting registered above
+#endif
 
     SurfaceFlinger::setSchedFifo(true, __func__);
     flinger->run();
