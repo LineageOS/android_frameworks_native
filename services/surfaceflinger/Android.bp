@@ -355,6 +355,8 @@ cc_defaults {
         "libutils",
     ],
     static_libs: [
+        "lineage.frameworks.displayservice@1.0",
+        "libdisplayservicehidl",
         "libserviceutils",
     ],
 }
