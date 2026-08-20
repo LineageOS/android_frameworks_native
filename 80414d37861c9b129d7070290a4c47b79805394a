@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c5d11f42_a4d856fa",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2026-08-20T15:01:01Z",
+      "side": 1,
+      "message": "What about also putting libdisplayservicehidl in hardware/lineage/interfaces? The changes in services/surfaceflinger could also be guarded behind a soong flag/ifdefs",
+      "revId": "80414d37861c9b129d7070290a4c47b79805394a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
