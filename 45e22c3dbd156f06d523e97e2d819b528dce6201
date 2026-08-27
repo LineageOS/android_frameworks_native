@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "2af43319_cee8ef0c",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 5
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2026-08-27T23:39:50Z",
+      "side": 1,
+      "message": "I would still put displayservice under hardware/lineage/interfaces",
+      "revId": "45e22c3dbd156f06d523e97e2d819b528dce6201",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
