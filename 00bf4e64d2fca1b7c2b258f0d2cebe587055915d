@@ -16,6 +16,24 @@
       "message": "Potentially someone still uses this, but one of my fleet?",
       "revId": "00bf4e64d2fca1b7c2b258f0d2cebe587055915d",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a02e9499_0e17bf20",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2026-08-27T23:28:38Z",
+      "side": 1,
+      "message": "hardware/qcom-caf/common/BoardConfigQcom.mk\n307:TARGET_ADDITIONAL_GRALLOC_10_USAGE_BITS ?\u003d 0\n310:TARGET_ADDITIONAL_GRALLOC_10_USAGE_BITS +\u003d | (1 \u003c\u003c 13)\n313:TARGET_ADDITIONAL_GRALLOC_10_USAGE_BITS +\u003d | (1 \u003c\u003c 21)\n317:    TARGET_ADDITIONAL_GRALLOC_10_USAGE_BITS +\u003d | (1 \u003c\u003c 27)",
+      "parentUuid": "c9753ca2_bb98eacd",
+      "revId": "00bf4e64d2fca1b7c2b258f0d2cebe587055915d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
