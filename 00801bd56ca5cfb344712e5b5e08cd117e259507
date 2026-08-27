@@ -16,6 +16,24 @@
       "message": "Not sure if we want to keep this and https://review.lineageos.org/c/LineageOS/android_frameworks_native/+/490669/3 since iirc these are for hardware navigation button backlight, which no shipping device has used for years.",
       "revId": "00801bd56ca5cfb344712e5b5e08cd117e259507",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "3dff60d5_c96956ec",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-08-27T23:40:16Z",
+      "side": 1,
+      "message": "pro1x with keyboard backlight.",
+      "parentUuid": "667ddcb8_ad5ec1d3",
+      "revId": "00801bd56ca5cfb344712e5b5e08cd117e259507",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
