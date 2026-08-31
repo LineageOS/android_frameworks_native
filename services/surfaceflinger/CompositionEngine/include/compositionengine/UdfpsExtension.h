@@ -20,7 +20,7 @@
 #define __UDFPS_EXTENSION__H__
 
 #define UDFPS_BIOMETRIC_PROMPT_LAYER_NAME "BiometricPrompt"
-#define UDFPS_DIM_LAYER_NAME "Dim Layer for UDFPS"
+#define UDFPS_DIM_LAYER_NAME "VRI-Dim Layer for UDFPS"
 #define UDFPS_LAYER_NAME "UdfpsControllerOverlay"
 #define UDFPS_TOUCHED_LAYER_NAME " SurfaceView[UdfpsControllerOverlay](BLAST)"
 
