@@ -34,6 +34,24 @@
       "parentUuid": "abf42162_7b279922",
       "revId": "da95e1ddfd9d7cfa7ca4ead2d6a205da11388f65",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "e1e258d5_56b901a6",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 35850
+      },
+      "writtenOn": "2026-09-08T14:31:16Z",
+      "side": 1,
+      "message": "Maybe reimplement these functions in a shim in hardware_lineage_compat?",
+      "parentUuid": "f40a8a6d_89b2758f",
+      "revId": "da95e1ddfd9d7cfa7ca4ead2d6a205da11388f65",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
