@@ -16,6 +16,24 @@
       "message": "Won\u0027t this break new blobs?",
       "revId": "da95e1ddfd9d7cfa7ca4ead2d6a205da11388f65",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "f40a8a6d_89b2758f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 35565
+      },
+      "writtenOn": "2026-09-08T14:29:44Z",
+      "side": 1,
+      "message": "mDependencyMonitor is the last member, so only sizeof() changes; member offsets stay the same.\nAn A16+ blob would just allocate ~3120 extra bytes,I think which is harmless. The one real break would be a caller of getDependencyMonitor(), and any in-tree caller fails at compile time rather than silently.\nThat said, I don’t think this is the best approach myself. It changes the ABI for everyone just to accommodate one device’s prebuilts. I’ll look for a cleaner solution👀",
+      "parentUuid": "abf42162_7b279922",
+      "revId": "da95e1ddfd9d7cfa7ca4ead2d6a205da11388f65",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
