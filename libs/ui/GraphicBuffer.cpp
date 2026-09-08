@@ -106,7 +106,9 @@ GraphicBuffer::GraphicBuffer()
     usage  = 0;
     layerCount = 0;
     handle = nullptr;
+#if !defined(__ANDROID_VENDOR__)
     mDependencyMonitor.setToken(std::to_string(mId));
+#endif
 }
 
 // deprecated
@@ -159,7 +161,9 @@ GraphicBuffer::GraphicBuffer(const GraphicBufferAllocator::AllocationRequest& re
         usage = request.usage;
         usage_deprecated = int(usage);
         std::string name = request.requestorName;
+#if !defined(__ANDROID_VENDOR__)
         mDependencyMonitor.setToken(name.append(":").append(std::to_string(mId)));
+#endif
     }
 }
 
@@ -262,7 +266,9 @@ status_t GraphicBuffer::initWithSize(uint32_t inWidth, uint32_t inHeight,
         usage = inUsage;
         usage_deprecated = int(usage);
         stride = static_cast<int>(outStride);
+#if !defined(__ANDROID_VENDOR__)
         mDependencyMonitor.setToken(requestorName.append(":").append(std::to_string(mId)));
+#endif
     }
     return err;
 }
@@ -626,7 +632,9 @@ status_t GraphicBuffer::unflatten(void const*& buffer, size_t& size, int const*&
         name = "<Unknown>";
     }
 
+#if !defined(__ANDROID_VENDOR__)
     mDependencyMonitor.setToken(name.append(":").append(std::to_string(mId)));
+#endif
 
     buffer = static_cast<void const*>(static_cast<uint8_t const*>(buffer) + sizeNeeded);
     size -= sizeNeeded;

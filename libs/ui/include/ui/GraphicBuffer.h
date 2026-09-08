@@ -231,7 +231,9 @@ public:
 
     void addDeathCallback(GraphicBufferDeathCallback deathCallback, void* context);
 
+#if !defined(__ANDROID_VENDOR__)
     DependencyMonitor& getDependencyMonitor() { return mDependencyMonitor; }
+#endif
 
 private:
     ~GraphicBuffer();
@@ -300,7 +302,12 @@ private:
     std::vector<std::pair<GraphicBufferDeathCallback, void* /*mDeathCallbackContext*/>>
             mDeathCallbacks;
 
+// The vendor variant keeps the pre-Android 16 layout: prebuilt vendor blobs inline
+// sizeof(GraphicBuffer) into their operator new() calls, so growing the object here
+// overflows every buffer they allocate.
+#if !defined(__ANDROID_VENDOR__)
     DependencyMonitor mDependencyMonitor;
+#endif
 };
 
 } // namespace android
