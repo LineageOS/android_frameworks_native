@@ -52,6 +52,24 @@
       "parentUuid": "f40a8a6d_89b2758f",
       "revId": "da95e1ddfd9d7cfa7ca4ead2d6a205da11388f65",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "de34f5c9_f007ea3d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 35565
+      },
+      "writtenOn": "2026-09-10T08:33:03Z",
+      "side": 1,
+      "message": "The problem is that the size of the memory allocated by the blob using `operator new(OLD_SIZE)` is hard-coded as a constant at compile, and I don\u0027t think the shim, which is loaded later, has any way to change the size of the allocation that has already been made...",
+      "parentUuid": "e1e258d5_56b901a6",
+      "revId": "da95e1ddfd9d7cfa7ca4ead2d6a205da11388f65",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
