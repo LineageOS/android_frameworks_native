@@ -16,6 +16,23 @@
       "message": "I don\u0027t know why you need this change, tho. It is fine on salami without it.",
       "revId": "0ec1966edafb792ffefa81879b24364528f823aa",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "29e95298_49a145b8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 7
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 16908
+      },
+      "writtenOn": "2026-09-11T11:57:08Z",
+      "side": 1,
+      "message": "i also need this on waffle\n\nOP5929L1:/ # dumpsys | grep \"Dim Layer\"\n  Layer [317] VRI-Dim Layer for UDFPS#317\n  Layer [317] VRI-Dim Layer for UDFPS#317\n    └─ 67015d7 Dim Layer for UDFPS#310 pid\u003d2610 uid\u003d1000 cookie\u003db400007b46dde540",
+      "revId": "0ec1966edafb792ffefa81879b24364528f823aa",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
