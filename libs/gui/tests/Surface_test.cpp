@@ -355,6 +355,29 @@ TEST_F(SurfaceTest, SettingGenerationNumber) {
     ASSERT_EQ(1U, graphicBuffer->getGenerationNumber());
 }
 
+TEST_F(SurfaceTest, GenerationNumberSurvivesReconnect) {
+    auto [consumer, surface] = BufferItemConsumer::create(GRALLOC_USAGE_SW_READ_OFTEN);
+
+    ASSERT_EQ(NO_ERROR, surface->connect(NATIVE_WINDOW_API_MEDIA, nullptr));
+    sp<GraphicBuffer> buffer;
+    sp<Fence> fence;
+    ASSERT_EQ(NO_ERROR, surface->dequeueBuffer(&buffer, &fence));
+    ASSERT_EQ(NO_ERROR, surface->cancelBuffer(buffer, fence));
+    ASSERT_EQ(NO_ERROR, surface->detachNextBuffer(&buffer, &fence));
+    ASSERT_EQ(0U, buffer->getGenerationNumber());
+
+    ASSERT_EQ(NO_ERROR, surface->setGenerationNumber(1));
+    surface->setAutoGenerationUpdate(false);
+    ASSERT_EQ(NO_ERROR, surface->disconnect(NATIVE_WINDOW_API_MEDIA));
+    ASSERT_EQ(NO_ERROR, surface->connect(NATIVE_WINDOW_API_MEDIA, nullptr));
+
+    // Reconnect must preserve the generation and re-enable automatic updates.
+    ASSERT_EQ(NO_ERROR, surface->attachBuffer(buffer));
+    ASSERT_EQ(1U, buffer->getGenerationNumber());
+    ASSERT_EQ(NO_ERROR, surface->cancelBuffer(buffer, fence));
+    ASSERT_EQ(NO_ERROR, surface->disconnect(NATIVE_WINDOW_API_MEDIA));
+}
+
 TEST_F(SurfaceTest, AutoGenerationUpdate) {
     auto [consumer, surface] = BufferItemConsumer::create(GRALLOC_USAGE_SW_READ_OFTEN);
 
