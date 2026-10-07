@@ -312,7 +312,8 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         if (halVersion > SENSORS_DEVICE_API_VERSION_1_0 && hwSensor.stringType) {
             mStringType = hwSensor.stringType;
         }
-        if (halVersion > SENSORS_DEVICE_API_VERSION_1_0 && hwSensor.requiredPermission) {
+        if (halVersion > SENSORS_DEVICE_API_VERSION_1_0 && hwSensor.requiredPermission &&
+            hwSensor.requiredPermission[0] != '\0') {
             mRequiredPermission = hwSensor.requiredPermission;
             bool requiresBodySensorPermission =
                     !strcmp(mRequiredPermission, SENSOR_PERMISSION_BODY_SENSORS);
