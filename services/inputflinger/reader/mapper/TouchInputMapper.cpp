@@ -1355,25 +1355,6 @@ std::list<NotifyArgs> TouchInputMapper::sync(nsecs_t when, nsecs_t readTime) {
              last.rawPointerData.touchingIdBits.value, next.rawPointerData.touchingIdBits.value,
              last.rawPointerData.hoveringIdBits.value, next.rawPointerData.hoveringIdBits.value,
              next.rawPointerData.canceledIdBits.value);
-    if (debugRawEvents() && last.rawPointerData.pointerCount == 0 &&
-        next.rawPointerData.pointerCount == 1) {
-        // Dump a bunch of info to try to debug b/396796958.
-        // TODO(b/396796958): remove this debug dump.
-        ALOGD("pointerCount went from 0 to 1. last:\n%s",
-              addLinePrefix(streamableToString(last), INDENT).c_str());
-        ALOGD("next:\n%s", addLinePrefix(streamableToString(next), INDENT).c_str());
-        ALOGD("InputReader dump:");
-        // The dump is too long to simply add as a format parameter in one log message, so we have
-        // to split it by line and log them individually.
-        std::istringstream stream(mDeviceContext.getContext()->dump());
-        std::string line;
-        while (std::getline(stream, line, '\n')) {
-            ALOGD(INDENT "%s", line.c_str());
-            // To prevent overwhelming liblog, add a small delay between each line to give it
-            // time to process the data written so far.
-            std::this_thread::sleep_for(1ms);
-        }
-    }
 
     if (!next.rawPointerData.touchingIdBits.isEmpty() &&
         !next.rawPointerData.hoveringIdBits.isEmpty() &&
