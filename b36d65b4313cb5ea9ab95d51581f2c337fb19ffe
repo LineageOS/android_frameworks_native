@@ -34,6 +34,24 @@
       "parentUuid": "8fb9b65e_4e0f7d16",
       "revId": "b36d65b4313cb5ea9ab95d51581f2c337fb19ffe",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "af4054ea_dea27b06",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 27741
+      },
+      "writtenOn": "2026-10-10T06:57:10Z",
+      "side": 1,
+      "message": "if i want to see cross module debug messages, i set persist.log.tag to D to see more info\ninputflinger state dump every input is more than just debugging (there are a lot of other debug messages there as well), it\u0027s completely ridiculous\nthey knew this hence it is commented for removal which they clearly forgot to do",
+      "parentUuid": "edffc1a6_b6c48ccd",
+      "revId": "b36d65b4313cb5ea9ab95d51581f2c337fb19ffe",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
