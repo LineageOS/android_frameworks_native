@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "8fb9b65e_4e0f7d16",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2026-10-10T06:26:56Z",
+      "side": 1,
+      "message": "how is debugRawEvents() true for you? this is normally false unless you set its log tag to DEBUG level?\n\n```cpp\nbool debugRawEvents() {\n    if (!IS_DEBUGGABLE_BUILD) {\n        static const bool DEBUG_RAW_EVENTS \u003d\n                __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG \"RawEvents\", ANDROID_LOG_INFO);\n        return DEBUG_RAW_EVENTS;\n    }\n    return __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG \"RawEvents\", ANDROID_LOG_INFO);\n}\n```",
+      "revId": "b36d65b4313cb5ea9ab95d51581f2c337fb19ffe",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
