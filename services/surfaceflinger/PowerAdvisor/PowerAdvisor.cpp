@@ -25,7 +25,12 @@
 #include <optional>
 
 #include <android-base/properties.h>
+#include <android/binder_auto_utils.h>
+#include <android/binder_ibinder.h>
 #include <android/binder_libbinder.h>
+#include <android/binder_manager.h>
+#include <android/binder_parcel.h>
+#include <android/binder_status.h>
 #include <common/WorkloadTracer.h>
 #include <common/trace.h>
 #include <ftl/concat.h>
@@ -51,7 +56,16 @@ using ChannelMessageContents = hal::ChannelMessage::ChannelMessageContents;
 using MsgQueue = android::AidlMessageQueue<hal::ChannelMessage, SynchronizedReadWrite>;
 using FlagQueue = android::AidlMessageQueue<int8_t, SynchronizedReadWrite>;
 
-PowerAdvisor::~PowerAdvisor() = default;
+PowerAdvisor::~PowerAdvisor() {
+    {
+        std::lock_guard lock(mRefreshRateMutex);
+        mRefreshRateStopped = true;
+    }
+    mRefreshRateCv.notify_one();
+    if (mRefreshRateThread.joinable()) {
+        mRefreshRateThread.join();
+    }
+}
 
 namespace {
 void traceExpensiveRendering(bool enabled) {
@@ -64,6 +78,27 @@ void traceExpensiveRendering(bool enabled) {
 
 static constexpr ftl::Flags<Workload> TRIGGER_LOAD_CHANGE_HINTS = Workload::EFFECTS |
         Workload::VISIBLE_REGION | Workload::DISPLAY_CHANGES | Workload::SCREENSHOT;
+
+constexpr const char* kPowerHalInstance = "android.hardware.power.IPower/default";
+constexpr const char* kPowerExtDescriptor = "google.hardware.power.extension.pixel.IPowerExt";
+constexpr const char* kRefreshRateHintProperty = "debug.sf.adpf_refresh_rate_hint";
+
+// IPowerExt is a vendor AIDL, so call it over raw binder instead of linking it.
+AIBinder_Class* getPowerExtClass() {
+    static AIBinder_Class* const clazz = AIBinder_Class_define(
+            kPowerExtDescriptor, [](void*) -> void* { return nullptr; }, [](void*) {},
+            [](AIBinder*, transaction_code_t, const AParcel*, AParcel*) -> binder_status_t {
+                return STATUS_UNKNOWN_TRANSACTION;
+            });
+    return clazz;
+}
+
+constexpr std::chrono::seconds kRefreshRateRetryDelay{1};
+constexpr int32_t kHintedRefreshRates[] = {60, 90, 120};
+
+std::string refreshRateHint(int32_t refreshRate) {
+    return "REFRESH_" + std::to_string(refreshRate) + "HZ";
+}
 } // namespace
 
 PowerAdvisor::PowerAdvisor(std::function<void()>&& sfDisableExpensiveFn,
@@ -536,6 +571,101 @@ void PowerAdvisor::setCommitStart(TimePoint commitStartTime) {
 
 void PowerAdvisor::setCompositeEnd(TimePoint compositeEndTime) {
     mLastPostcompDuration = compositeEndTime - mLastSfPresentEndTime;
+}
+
+void PowerAdvisor::notifyRefreshRate(int32_t refreshRate) {
+    if (refreshRate <= 0 || !base::GetBoolProperty(kRefreshRateHintProperty, false)) {
+        return;
+    }
+
+    std::lock_guard lock(mRefreshRateMutex);
+    if (refreshRate == mLastNotifiedRefreshRate) {
+        return;
+    }
+
+    mLastNotifiedRefreshRate = refreshRate;
+    mPendingRefreshRate = refreshRate;
+    if (!mRefreshRateThread.joinable()) {
+        mRefreshRateThread = std::thread([this] { refreshRateHintLoop(); });
+    }
+    mRefreshRateCv.notify_one();
+}
+
+void PowerAdvisor::refreshRateHintLoop() {
+    pthread_setname_np(pthread_self(), "RefreshRateHint");
+
+    std::unique_lock lock(mRefreshRateMutex);
+    while (true) {
+        mRefreshRateCv.wait(lock, [this] { return mRefreshRateStopped || mPendingRefreshRate; });
+        if (mRefreshRateStopped) {
+            return;
+        }
+
+        const int32_t refreshRate = *mPendingRefreshRate;
+        mPendingRefreshRate.reset();
+
+        lock.unlock();
+        const bool applied = applyRefreshRateHint(refreshRate);
+        lock.lock();
+
+        if (!applied && !mPendingRefreshRate) {
+            // HAL might not be up yet, try again in a bit.
+            mRefreshRateCv.wait_for(lock, kRefreshRateRetryDelay,
+                                    [this] { return mRefreshRateStopped || mPendingRefreshRate; });
+            if (!mRefreshRateStopped && !mPendingRefreshRate) {
+                mPendingRefreshRate = refreshRate;
+            }
+        }
+    }
+}
+
+bool PowerAdvisor::applyRefreshRateHint(int32_t refreshRate) {
+    // Turn the new rate on first, then every other rate off.
+    if (!setPowerExtMode(refreshRateHint(refreshRate), true)) {
+        return false;
+    }
+    for (const int32_t rate : kHintedRefreshRates) {
+        if (rate != refreshRate) {
+            setPowerExtMode(refreshRateHint(rate), false);
+        }
+    }
+    return true;
+}
+
+bool PowerAdvisor::setPowerExtMode(const std::string& mode, bool enabled) {
+    SFTRACE_FORMAT("PowerExt setMode %s %d", mode.c_str(), enabled);
+
+    if (!mPowerExtBinder.get()) {
+        ndk::SpAIBinder power(AServiceManager_checkService(kPowerHalInstance));
+        AIBinder* ext = nullptr;
+        if (!power.get() || AIBinder_getExtension(power.get(), &ext) != STATUS_OK || !ext) {
+            return false;
+        }
+        ndk::SpAIBinder binder(ext);
+        if (!AIBinder_associateClass(binder.get(), getPowerExtClass())) {
+            return false;
+        }
+        mPowerExtBinder = std::move(binder);
+    }
+
+    AParcel* in = nullptr;
+    if (AIBinder_prepareTransaction(mPowerExtBinder.get(), &in) != STATUS_OK) {
+        return false;
+    }
+    AParcel_writeString(in, mode.c_str(), static_cast<int32_t>(mode.size()));
+    AParcel_writeBool(in, enabled);
+
+    // setMode is the first method in IPowerExt, so it's code 1.
+    AParcel* out = nullptr;
+    const binder_status_t status =
+            AIBinder_transact(mPowerExtBinder.get(), FIRST_CALL_TRANSACTION, &in, &out, 0);
+    ndk::ScopedAParcel outParcel(out);
+    if (status != STATUS_OK) {
+        // HAL probably died, reconnect next time.
+        mPowerExtBinder.set(nullptr);
+        return false;
+    }
+    return true;
 }
 
 void PowerAdvisor::setDisplays(std::vector<DisplayId>& displayIds) {

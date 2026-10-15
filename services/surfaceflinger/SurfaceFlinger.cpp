@@ -1044,6 +1044,9 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
                             if (const auto display = getDisplayDeviceLocked(displayId)) {
                                 display->updateRefreshRateOverlayRate(vsyncRate, renderRate);
                             }
+                            if (displayId == getPrimaryDisplayIdLocked()) {
+                                mPowerAdvisor->notifyRefreshRate(vsyncRate.getIntValue());
+                            }
                         }));
                     }));
 

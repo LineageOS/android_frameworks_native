@@ -17,10 +17,14 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <future>
+#include <mutex>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
+#include <android/binder_auto_utils.h>
 #include <ui/DisplayId.h>
 #include <ui/FenceTime.h>
 #include <ui/RingBuffer.h>
@@ -112,6 +116,8 @@ public:
     virtual void setTotalFrameTargetWorkDuration(Duration targetDuration) = 0;
     // Get the session manager, if it exists
     virtual std::shared_ptr<SessionManager> getSessionManager() = 0;
+    // Tells the power HAL the current refresh rate so it can switch ADPF profile
+    virtual void notifyRefreshRate(int32_t refreshRate) = 0;
 
     // --- Track per frame workloads to use for load up hint heuristics
     // Track queued workload from transactions as they are queued from the binder thread.
@@ -182,6 +188,7 @@ public:
     void setDisplays(std::vector<DisplayId>& displayIds) override;
     void setTotalFrameTargetWorkDuration(Duration targetDuration) override;
     std::shared_ptr<SessionManager> getSessionManager() override;
+    void notifyRefreshRate(int32_t refreshRate) override;
 
     void setQueuedWorkload(ftl::Flags<Workload> workload) override;
     void setScreenshotWorkload() override;
@@ -283,6 +290,20 @@ private:
 
     // Ensure powerhal connection is initialized
     power::PowerHalController& getPowerHal();
+
+    void refreshRateHintLoop();
+    bool applyRefreshRateHint(int32_t refreshRate);
+    bool setPowerExtMode(const std::string& mode, bool enabled);
+
+    std::mutex mRefreshRateMutex;
+    std::condition_variable mRefreshRateCv;
+    std::thread mRefreshRateThread;
+    std::optional<int32_t> mPendingRefreshRate;
+    int32_t mLastNotifiedRefreshRate = 0;
+    bool mRefreshRateStopped = false;
+
+    // Only used on mRefreshRateThread
+    ndk::SpAIBinder mPowerExtBinder;
 
     // These variables are set before mBootFinished and never mutated after, so it's safe to access
     // from threaded methods.
