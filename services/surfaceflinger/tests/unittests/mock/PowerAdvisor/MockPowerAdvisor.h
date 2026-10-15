@@ -62,6 +62,7 @@ public:
     MOCK_METHOD(void, setFrameDelay, (Duration frameDelayDuration), (override));
     MOCK_METHOD(void, setCommitStart, (TimePoint commitStartTime), (override));
     MOCK_METHOD(void, setCompositeEnd, (TimePoint compositeEndTime), (override));
+    MOCK_METHOD(void, notifyRefreshRate, (int32_t refreshRate), (override));
     MOCK_METHOD(void, setDisplays, (std::vector<DisplayId> & displayIds), (override));
     MOCK_METHOD(void, setTotalFrameTargetWorkDuration, (Duration targetDuration), (override));
     MOCK_METHOD(std::shared_ptr<SessionManager>, getSessionManager, (), (override));
