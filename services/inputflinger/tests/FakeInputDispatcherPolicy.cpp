@@ -566,7 +566,8 @@ void FakeInputDispatcherPolicy::notifySwitch(nsecs_t when, uint32_t switchValues
 }
 
 void FakeInputDispatcherPolicy::pokeUserActivity(nsecs_t eventTime, int32_t eventType,
-                                                 ui::LogicalDisplayId displayId) {
+                                                 ui::LogicalDisplayId displayId,
+                                                 int32_t /*keyCode*/) {
     std::scoped_lock lock(mLock);
     mNotifyUserActivity.notify_all();
     mUserActivityPokeEvents.push({eventTime, eventType, displayId});

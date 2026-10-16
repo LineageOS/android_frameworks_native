@@ -234,8 +234,8 @@ private:
                                                  uint32_t) override;
     void notifySwitch(nsecs_t when, uint32_t switchValues, uint32_t switchMask,
                       uint32_t policyFlags) override;
-    void pokeUserActivity(nsecs_t eventTime, int32_t eventType,
-                          ui::LogicalDisplayId displayId) override;
+    void pokeUserActivity(nsecs_t eventTime, int32_t eventType, ui::LogicalDisplayId displayId,
+                          int32_t keyCode) override;
     bool isStaleEvent(nsecs_t currentTime, nsecs_t eventTime) override;
     void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override;
     void setPointerCapture(const PointerCaptureRequest& request) override;
