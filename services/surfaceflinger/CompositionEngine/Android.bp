@@ -82,7 +82,6 @@ filegroup {
         "src/OutputLayer.cpp",
         "src/OutputLayerCompositionState.cpp",
         "src/RenderSurface.cpp",
-        "src/UdfpsExtension.cpp",
     ],
 }
 
