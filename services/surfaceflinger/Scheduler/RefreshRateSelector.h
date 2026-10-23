@@ -368,7 +368,7 @@ public:
             EXCLUDES(mLock);
 
     // Gets the FpsRange that the FrameRateCategory represents.
-    static FpsRange getFrameRateCategoryRange(FrameRateCategory category);
+    FpsRange getFrameRateCategoryRange(FrameRateCategory category) const REQUIRES(mLock);
 
     std::optional<KernelIdleTimerController> kernelIdleTimerController() {
         return mConfig.kernelIdleTimerController;
