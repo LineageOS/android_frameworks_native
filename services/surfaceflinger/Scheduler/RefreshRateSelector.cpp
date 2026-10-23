@@ -1823,14 +1823,17 @@ std::chrono::milliseconds RefreshRateSelector::getIdleTimerTimeout() {
 }
 
 // TODO(b/293651105): Extract category FpsRange mapping to OEM-configurable config.
-FpsRange RefreshRateSelector::getFrameRateCategoryRange(FrameRateCategory category) {
+FpsRange RefreshRateSelector::getFrameRateCategoryRange(FrameRateCategory category) const {
+    using fps_approx_ops::operator<;
+    const Fps peakFps = getActiveModeLocked().modePtr->getPeakFps();
+    const Fps maxFps = peakFps < 120_Hz ? 120_Hz : peakFps;
     switch (category) {
         case FrameRateCategory::High:
-            return FpsRange{kFrameRateCategoryRateHigh, 120_Hz};
+            return FpsRange{kFrameRateCategoryRateHigh, maxFps};
         case FrameRateCategory::Normal:
-            return FpsRange{kFrameRateCategoryRateNormal, 120_Hz};
+            return FpsRange{kFrameRateCategoryRateNormal, maxFps};
         case FrameRateCategory::Low:
-            return FpsRange{48_Hz, 120_Hz};
+            return FpsRange{48_Hz, maxFps};
         case FrameRateCategory::HighHint:
         case FrameRateCategory::NoPreference:
         case FrameRateCategory::Default:
