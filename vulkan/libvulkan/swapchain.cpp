@@ -760,7 +760,13 @@ bool SupportsSurfaceFormat(const InstanceDriverTable& driver,
     properties.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2;
     properties.pNext = nullptr;
 
-    VkResult result = driver.GetPhysicalDeviceImageFormatProperties2(
+    // A Vulkan 1.0 instance has no core entry point; the driver.cpp wrapper
+    // falls back to the KHR one. Without either, the format is unsupported.
+    if (!driver.GetPhysicalDeviceImageFormatProperties2 &&
+        !driver.GetPhysicalDeviceImageFormatProperties2KHR) {
+        return false;
+    }
+    VkResult result = GetPhysicalDeviceImageFormatProperties2(
         pdev, &formatInfo, &properties);
 
     return result == VK_SUCCESS;
