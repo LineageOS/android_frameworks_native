@@ -20,7 +20,9 @@
       },
       "overrideExpressionResult": {},
       "patchSetCommitId": "0a22ac3a427c7383e8780f50368ceafd2054cea7",
-      "legacy": {},
+      "legacy": {
+        "value": false
+      },
       "forced": {},
       "hidden": {}
     }
