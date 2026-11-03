@@ -16,6 +16,23 @@
       "message": "Fine, I guess.",
       "revId": "91f6f168af115f0b872578881b02926594d82610",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2dbafd7c_0181533a",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 9760
+      },
+      "writtenOn": "2026-11-03T11:26:18Z",
+      "side": 1,
+      "message": "With this patch, the fingerprint sensor on the OnePlus 7T/7T Pro stops working.",
+      "revId": "91f6f168af115f0b872578881b02926594d82610",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
