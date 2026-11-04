@@ -2007,7 +2007,7 @@ status_t SensorService::registerClientListener(
     }
 
     status_t frozenErr = binder->addFrozenStateChangeCallback(recipient);
-    if (frozenErr != OK) {
+    if (frozenErr != OK && frozenErr != INVALID_OPERATION) {
         ALOGE("Failed to addFrozenStateChangeCallback (pid=%d, uid=%d), error=%d. "
               "Cleaning up linkToDeath and aborting registration.",
               pid, uid, frozenErr);
@@ -2053,7 +2053,7 @@ status_t SensorService::unregisterClientListener(
         // Detach from binder notifications. Do this without holding mStateLock to prevent ANR.
         binder->unlinkToDeath(recipient);
         status_t removeErr = binder->removeFrozenStateChangeCallback(recipient);
-        if (removeErr != OK && removeErr != DEAD_OBJECT) {
+        if (removeErr != OK && removeErr != DEAD_OBJECT && removeErr != INVALID_OPERATION) {
             // DEAD_OBJECT is expected if the client is already gone.
             ALOGW("Failed to remove frozen state change callback, error=%d", removeErr);
         }
