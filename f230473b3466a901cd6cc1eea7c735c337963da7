@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "710274fb_9d23c7d2",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13028
+      },
+      "writtenOn": "2026-11-25T16:20:13Z",
+      "side": 1,
+      "message": "Hi. While we appreciate your contributions, we do not take features/code from GrapheneOS. I\u0027ll not comment on all changes, this is valid for all of them",
+      "revId": "f230473b3466a901cd6cc1eea7c735c337963da7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
